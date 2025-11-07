@@ -1,67 +1,23 @@
-# Welcome to your Expo app 👋
+# TripSync
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Quick Start
 
-## Get started
+```bash
+# Clone the repo
+git clone https://github.com/<your-username>/TripSync.git
+cd TripSync
 
-### Frontend Setup
+# Frontend: install deps and start Expo
+cd frontend
+npm install
+npm start
 
-1. Install dependencies (in root directory)
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-### Backend Setup
-
-1. Navigate to the server directory and install dependencies:
-
-   ```bash
-   cd server
-   npm install
-   ```
-
-2. Create a `.env` file in the `server` directory:
-
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   PORT=3000
-   ```
-
-   Get your OpenAI API key from: https://platform.openai.com/api-keys
-
-3. Start the backend server:
-
-   ```bash
-   npm start
-   ```
-
-   The server will run on `http://localhost:3000`
-
-4. The app includes a Chat tab where you can interact with ChatGPT. Make sure the backend server is running before using it.
-
-**Note for Physical Devices:**
-- If testing on a physical device (not simulator/emulator), you'll need to update the API URL in `services/api.ts`
-- Replace `localhost` with your computer's local IP address (e.g., `192.168.1.100:3000`)
-- Find your IP: macOS/Linux: `ifconfig` or `ip addr`, Windows: `ipconfig`
-- Make sure your device and computer are on the same WiFi network
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
+# In another terminal: start the backend
+cd backend
+npm install
+echo "OPENAI_API_KEY=your_key_here\nPORT=3000" > .env
+npm start
+```
 
 When you're ready, run:
 
