@@ -1,98 +1,184 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+function Header() {
+  return (
+    <View style={styles.headerContainer}>
+      <View style={styles.headerTopRow}>
+        <Text style={styles.appTitle}>TripSync</Text>
+        <View style={styles.avatar} />
+      </View>
+      <Text style={styles.headerSubtitle}>Plan your next adventure together</Text>
+    </View>
+  );
+}
+
+type TripCardProps = { title: string; date: string; image: any };
+
+function TripCard({ title, date, image }: TripCardProps) {
+  return (
+    <View style={styles.card}>
+      <Image source={image} style={styles.cardImage} contentFit="cover" />
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardDate}>{date}</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const insets = useSafeAreaInsets();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}> 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Header />
+
+        <Text style={styles.sectionTitle}>Your Trips</Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tripsRow}
+        >
+          <TripCard
+            title="Bali, Indonesia"
+            date="Dec 15-22, 2025"
+            image={require('@/assets/images/react-logo.png')}
+          />
+          <View style={{ width: 16 }} />
+          <TripCard
+            title="Paris, France"
+            date="Jan 10-14, 2026"
+            image={require('@/assets/images/react-logo.png')}
+          />
+        </ScrollView>
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      <View style={styles.ctaContainer}>
+        <Pressable style={styles.ctaButton} onPress={() => {}}>
+          <Text style={styles.ctaPlus}>＋</Text>
+          <Text style={styles.ctaLabel}>Start New Trip</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  screen: {
+    flex: 1,
+    backgroundColor: '#F6F8FC',
+  },
+  content: {
+    paddingBottom: 0,
+  },
+  headerContainer: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 20,
+    backgroundColor: '#4F8BFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  appTitle: {
+    color: 'white',
+    fontSize: 36,
+    fontWeight: '800',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  sectionTitle: {
+    marginTop: 20,
+    marginHorizontal: 16,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1E1E1E',
+  },
+  tripsRow: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  card: {
+    width: 360,
+    borderRadius: 16,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  cardImage: {
+    width: '100%',
+    height: 180,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  cardBody: {
+    padding: 16,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1E1E1E',
+  },
+  cardDate: {
+    marginTop: 6,
+    color: '#6C6C6C',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  ctaContainer: {
     position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+  },
+  ctaButton: {
+    backgroundColor: '#4F8BFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  ctaPlus: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  ctaLabel: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

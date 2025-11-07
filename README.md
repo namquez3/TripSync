@@ -1,5 +1,15 @@
 # TripSync
 
+## Prerequisites
+
+- Node.js
+```bash
+brew install node
+```
+
+- iOS Simulator (Xcode) or Android Emulator (Android Studio) — or a physical device with the Expo Go app
+- Git
+
 ## Quick Start
 
 ```bash
