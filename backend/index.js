@@ -11,9 +11,9 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// const openai = new OpenAI({
+//   apiKey: process.env.OPENAI_API_KEY,
+// });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -29,27 +29,29 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'OpenAI API key is not configured' });
-    }
+    console.log('TODO! We can use this route to call the OpenAI API and get a response');
 
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'user',
-          content: message,
-        },
-      ],
-      max_tokens: 500,
-    });
+    // if (!process.env.OPENAI_API_KEY) {
+    //   return res.status(500).json({ error: 'OpenAI API key is not configured' });
+    // }
 
-    const response = completion.choices[0]?.message?.content || 'No response';
+    // const completion = await openai.chat.completions.create({
+    //   model: model,
+    //   messages: [
+    //     {
+    //       role: 'user',
+    //       content: message,
+    //     },
+    //   ],
+    //   max_tokens: 500,
+    // });
 
-    res.json({
-      success: true,
-      response: response,
-    });
+    // const response = completion.choices[0]?.message?.content || 'No response';
+
+    // res.json({
+    //   success: true,
+    //   response: response,
+    // });
   } catch (error) {
     console.error('OpenAI API Error:', error);
     res.status(500).json({

@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { chatAPI } from '@/services/api';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Platform, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 export default function ChatScreen() {
   const [message, setMessage] = useState('');
@@ -54,7 +54,7 @@ export default function ChatScreen() {
         ) : (
           <ThemedView style={styles.placeholderContainer}>
             <ThemedText style={styles.placeholderText}>
-              Your conversation will appear here...
+              Your conversation will appear here (this just a test rn)...
             </ThemedText>
           </ThemedView>
         )}

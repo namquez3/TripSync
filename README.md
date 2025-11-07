@@ -15,7 +15,7 @@ npm start
 # In another terminal: start the backend
 cd backend
 npm install
-echo "OPENAI_API_KEY=your_key_here\nPORT=3000" > .env
+echo "OPENAI_API_KEY=your_key_here\nPORT=3000" > .env # worry about this when we implement the backend
 npm start
 ```
 
