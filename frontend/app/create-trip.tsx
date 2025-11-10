@@ -13,6 +13,46 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Helper function to format date input as MM/DD/YYYY
+const formatDateInput = (text: string): string => {
+  // Remove all non-numeric characters
+  const numbers = text.replace(/\D/g, '');
+  
+  // Limit to 8 digits (MMDDYYYY)
+  const limited = numbers.slice(0, 8);
+  
+  // Format based on length
+  if (limited.length === 0) return '';
+  if (limited.length <= 2) return limited;
+  if (limited.length <= 4) return `${limited.slice(0, 2)}/${limited.slice(2)}`;
+  return `${limited.slice(0, 2)}/${limited.slice(2, 4)}/${limited.slice(4)}`;
+};
+
+// Helper function to validate date format (MM/DD/YYYY)
+const isValidDate = (dateString: string): boolean => {
+  if (!dateString || dateString.length !== 10) return false;
+  
+  const parts = dateString.split('/');
+  if (parts.length !== 3) return false;
+  
+  const month = parseInt(parts[0], 10);
+  const day = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  
+  // Basic validation
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  if (year < 1900 || year > 2100) return false;
+  
+  // Check if date is valid (e.g., not Feb 30)
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+};
+
 export default function CreateTripScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -21,6 +61,16 @@ export default function CreateTripScreen() {
   const [endDate, setEndDate] = useState('');
   const [friends, setFriends] = useState<string[]>([]);
   const [friendEmail, setFriendEmail] = useState('');
+
+  const handleStartDateChange = (text: string) => {
+    const formatted = formatDateInput(text);
+    setStartDate(formatted);
+  };
+
+  const handleEndDateChange = (text: string) => {
+    const formatted = formatDateInput(text);
+    setEndDate(formatted);
+  };
 
   const addFriend = () => {
     if (friendEmail.trim() && !friends.includes(friendEmail.trim())) {
@@ -34,9 +84,20 @@ export default function CreateTripScreen() {
   };
 
   const handleContinue = () => {
-    // TODO: Navigate to next step or save trip
-    console.log({ destination, startDate, endDate, friends });
+    router.push({
+      pathname: '/set-priorities',
+      params: {
+        destination: destination,
+        startDate: startDate,
+        endDate: endDate,
+      },
+    });
   };
+
+  const isFormValid = 
+    destination.trim() !== '' && 
+    isValidDate(startDate) && 
+    isValidDate(endDate);
 
   return (
     <KeyboardAvoidingView
@@ -92,10 +153,12 @@ export default function CreateTripScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Start date"
+                  placeholder="MM/DD/YYYY"
                   placeholderTextColor="#9CA3AF"
                   value={startDate}
-                  onChangeText={setStartDate}
+                  onChangeText={handleStartDateChange}
+                  keyboardType="numeric"
+                  maxLength={10}
                 />
               </View>
               <View style={styles.dateSeparator} />
@@ -108,10 +171,12 @@ export default function CreateTripScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="End date"
+                  placeholder="MM/DD/YYYY"
                   placeholderTextColor="#9CA3AF"
                   value={endDate}
-                  onChangeText={setEndDate}
+                  onChangeText={handleEndDateChange}
+                  keyboardType="numeric"
+                  maxLength={10}
                 />
               </View>
             </View>
@@ -186,11 +251,10 @@ export default function CreateTripScreen() {
           <Pressable
             style={[
               styles.continueButton,
-              (!destination.trim() || !startDate.trim() || !endDate.trim()) &&
-                styles.continueButtonDisabled,
+              !isFormValid && styles.continueButtonDisabled,
             ]}
             onPress={handleContinue}
-            disabled={!destination.trim() || !startDate.trim() || !endDate.trim()}
+            disabled={!isFormValid}
           >
             <Text style={styles.continueButtonText}>Continue</Text>
             <MaterialIcons name="arrow-forward" size={20} color="white" />
