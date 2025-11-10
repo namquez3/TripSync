@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ function TripCard({ title, date, image }: TripCardProps) {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}> 
@@ -60,7 +62,7 @@ export default function HomeScreen() {
       </ScrollView>
 
       <View style={styles.ctaContainer}>
-        <Pressable style={styles.ctaButton} onPress={() => {}}>
+        <Pressable style={styles.ctaButton} onPress={() => router.push('/create-trip')}>
           <Text style={styles.ctaPlus}>＋</Text>
           <Text style={styles.ctaLabel}>Start New Trip</Text>
         </Pressable>
