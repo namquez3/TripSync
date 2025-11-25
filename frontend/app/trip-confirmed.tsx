@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     Pressable,
     ScrollView,
@@ -10,6 +10,7 @@ import {
     Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { saveTrip } from '@/services/tripStorage';
 
 // Mock flight and hotel data based on trip selection
 const getFlightInfo = (destination: string, duration: number) => {
@@ -101,12 +102,33 @@ export default function TripConfirmedScreen() {
     const accommodation = (params.accommodation as string) || '';
     const duration = params.duration ? parseInt(params.duration as string) : 0;
 
-    // Calculate cost per person (assuming 2 people for group trip)
-    const costPerPerson = Math.round(totalCost / 2);
-
     // Get flight and hotel information
     const flightInfo = getFlightInfo(destination, duration);
     const hotelInfo = getHotelInfo(destination, accommodation);
+
+    // Save trip when component mounts
+    useEffect(() => {
+        const saveConfirmedTrip = async () => {
+            try {
+                await saveTrip({
+                    destination,
+                    startDate,
+                    endDate,
+                    cost: totalCost,
+                    duration,
+                    accommodation,
+                    description: params.description as string || '',
+                    matchPercentage: params.matchPercentage ? parseInt(params.matchPercentage as string) : 0,
+                    imageUrl: params.imageUrl as string || undefined,
+                    itinerary: params.itinerary ? JSON.parse(params.itinerary as string) : undefined,
+                    costBreakdown: params.costBreakdown ? JSON.parse(params.costBreakdown as string) : undefined,
+                });
+            } catch (error) {
+                console.error('Error saving trip:', error);
+            }
+        };
+        saveConfirmedTrip();
+    }, []);
 
     const handleDone = () => {
         // Navigate back to home or trips list
@@ -231,10 +253,6 @@ export default function TripConfirmedScreen() {
                         <View style={styles.costRow}>
                             <Text style={styles.costLabel}>Total Cost:</Text>
                             <Text style={styles.totalCost}>${totalCost.toLocaleString()}</Text>
-                        </View>
-                        <View style={styles.costRow}>
-                            <Text style={styles.costLabel}>Cost per Person:</Text>
-                            <Text style={styles.costPerPerson}>${costPerPerson.toLocaleString()}</Text>
                         </View>
                     </View>
                 </View>

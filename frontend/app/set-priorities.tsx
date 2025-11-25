@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Pressable,
@@ -8,11 +8,11 @@ import {
     Text,
     View,
 } from 'react-native';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+    runOnJS,
     useAnimatedStyle,
     useSharedValue,
-    runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,98 +38,84 @@ function PrioritySlider({
     rightLabel,
     value,
     onValueChange,
-}: PrioritySliderProps) {
+  }: PrioritySliderProps) {
     const sliderWidth = 300;
     const thumbSize = 24;
     const thumbRadius = thumbSize / 2;
-    
-    // Position is the center of the thumb along the track (0 to sliderWidth)
+  
     const position = useSharedValue((value / 100) * sliderWidth);
-
-    // Sync position when value changes externally
-    React.useEffect(() => {
-        position.value = (value / 100) * sliderWidth;
-    }, [value]);
-
-    const updateValue = (pos: number) => {
-        const clampedPos = Math.max(0, Math.min(sliderWidth, pos));
-        const newValue = Math.round((clampedPos / sliderWidth) * 100);
-        onValueChange(newValue);
-    };
-
     const startPosition = useSharedValue(0);
-    
-    const pan = Gesture.Pan()
-        .onStart(() => {
-            'worklet';
-            // Store the current position when gesture starts
-            startPosition.value = position.value;
-        })
-        .onUpdate((e) => {
-            'worklet';
-            // Calculate new position: start position + translation
-            const newPosition = startPosition.value + e.translationX;
-            // Clamp to track bounds
-            position.value = Math.max(0, Math.min(sliderWidth, newPosition));
-        })
-        .onEnd(() => {
-            'worklet';
-            // Update the actual value when gesture ends
-            runOnJS(updateValue)(position.value);
-        });
-
-    const thumbStyle = useAnimatedStyle(() => {
-        'worklet';
-        return {
-            transform: [{ translateX: position.value - thumbRadius }],
-        };
-    });
-
-    const fillStyle = useAnimatedStyle(() => {
-        'worklet';
-        return {
-            width: position.value,
-        };
-    });
-
-    const onTrackPress = (e: any) => {
-        const { locationX } = e.nativeEvent;
-        const clampedX = Math.max(0, Math.min(sliderWidth, locationX));
-        position.value = clampedX;
-        updateValue(clampedX);
+  
+    React.useEffect(() => {
+      position.value = (value / 100) * sliderWidth;
+    }, [value]);
+  
+    const updateValue = (pos: number) => {
+      const clampedPos = Math.max(0, Math.min(sliderWidth, pos));
+      const newValue = Math.round((clampedPos / sliderWidth) * 100);
+      onValueChange(newValue);
     };
-
+  
+    const pan = Gesture.Pan()
+      .onStart((e) => {
+        'worklet';
+        // if user taps somewhere on the track, jump thumb there
+        const tappedX = e.x; // position within the track
+        startPosition.value = tappedX;
+        position.value = Math.max(0, Math.min(sliderWidth, tappedX));
+      })
+      .onUpdate((e) => {
+        'worklet';
+        const newPosition = startPosition.value + e.translationX;
+        position.value = Math.max(0, Math.min(sliderWidth, newPosition));
+      })
+      .onEnd(() => {
+        'worklet';
+        runOnJS(updateValue)(position.value);
+      });
+  
+    const thumbStyle = useAnimatedStyle(() => {
+      return {
+        transform: [{ translateX: position.value - thumbRadius }],
+      };
+    });
+  
+    const fillStyle = useAnimatedStyle(() => {
+      return {
+        width: position.value,
+      };
+    });
+  
     return (
-        <View style={styles.priorityCard}>
-            <View style={styles.priorityHeader}>
-                <View style={[styles.iconContainer, { backgroundColor: iconColor }]}>
-                    <MaterialIcons name={icon} size={24} color="#1C4E80" />
-                </View>
-                <View style={styles.priorityTextContainer}>
-                    <Text style={styles.priorityTitle}>{title}</Text>
-                    <Text style={styles.prioritySubtitle}>{subtitle}</Text>
-                </View>
-            </View>
-
-            <View style={styles.sliderContainer}>
-                <Pressable onPress={onTrackPress}>
-                    <View style={styles.sliderTrack}>
-                        <Animated.View style={[styles.sliderFill, fillStyle]} />
-                        <GestureDetector gesture={pan}>
-                            <Animated.View style={[styles.sliderThumb, thumbStyle]} />
-                        </GestureDetector>
-                    </View>
-                </Pressable>
-            </View>
-
-            <View style={styles.sliderLabels}>
-                <Text style={styles.sliderLabel}>{leftLabel}</Text>
-                <Text style={styles.sliderValue}>{value}%</Text>
-                <Text style={styles.sliderLabel}>{rightLabel}</Text>
-            </View>
+      <View style={styles.priorityCard}>
+        <View style={styles.priorityHeader}>
+          <View style={[styles.iconContainer, { backgroundColor: iconColor }]}>
+            <MaterialIcons name={icon} size={24} color="#1C4E80" />
+          </View>
+          <View style={styles.priorityTextContainer}>
+            <Text style={styles.priorityTitle}>{title}</Text>
+            <Text style={styles.prioritySubtitle}>{subtitle}</Text>
+          </View>
         </View>
+  
+        <View style={styles.sliderContainer}>
+          <GestureDetector gesture={pan}>
+            <Animated.View style={styles.sliderTrack}>
+              <Animated.View style={[styles.sliderFill, fillStyle]} />
+              <Animated.View style={[styles.sliderThumb, thumbStyle]} />
+            </Animated.View>
+          </GestureDetector>
+        </View>
+  
+        <View style={styles.sliderLabels}>
+          <Text style={styles.sliderLabel}>{leftLabel}</Text>
+          <Text style={styles.sliderValue}>{value}%</Text>
+          <Text style={styles.sliderLabel}>{rightLabel}</Text>
+        </View>
+      </View>
     );
-}
+  }
+  
 
 export default function SetPrioritiesScreen() {
     const router = useRouter();
@@ -140,6 +126,7 @@ export default function SetPrioritiesScreen() {
     const [planning, setPlanning] = useState(50);
 
     // Get trip details from create-trip (passed via route params)
+    const departureLocation = (params.departureLocation as string) || '';
     const destination = (params.destination as string) || '';
     const startDate = (params.startDate as string) || '';
     const endDate = (params.endDate as string) || '';
@@ -152,6 +139,7 @@ export default function SetPrioritiesScreen() {
                 travelStyle: travelStyle.toString(),
                 planning: planning.toString(),
                 // Pass through trip details from create-trip
+                departureLocation: departureLocation,
                 destination: destination,
                 startDate: startDate,
                 endDate: endDate,

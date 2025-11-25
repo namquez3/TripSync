@@ -2,14 +2,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -53,23 +53,88 @@ const isValidDate = (dateString: string): boolean => {
   );
 };
 
+// Helper function to parse date string (MM/DD/YYYY) to Date object
+const parseDate = (dateString: string): Date | null => {
+  if (!isValidDate(dateString)) return null;
+  const parts = dateString.split('/');
+  const month = parseInt(parts[0], 10);
+  const day = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  return new Date(year, month - 1, day);
+};
+
+// Helper function to check if date is in the past
+const isDateInPast = (dateString: string): boolean => {
+  const date = parseDate(dateString);
+  if (!date) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return date < today;
+};
+
+// Helper function to check if end date is before start date
+const isEndDateBeforeStart = (startDateString: string, endDateString: string): boolean => {
+  const startDate = parseDate(startDateString);
+  const endDate = parseDate(endDateString);
+  if (!startDate || !endDate) return false;
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+  return endDate < startDate;
+};
+
 export default function CreateTripScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [departureLocation, setDepartureLocation] = useState('');
   const [destination, setDestination] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [friends, setFriends] = useState<string[]>([]);
   const [friendEmail, setFriendEmail] = useState('');
+  const [startDateError, setStartDateError] = useState<string>('');
+  const [endDateError, setEndDateError] = useState<string>('');
 
   const handleStartDateChange = (text: string) => {
     const formatted = formatDateInput(text);
     setStartDate(formatted);
+    setStartDateError(''); // Clear error when user types
+    
+    // Validate if date is complete
+    if (formatted.length === 10) {
+      if (!isValidDate(formatted)) {
+        setStartDateError('Please enter a valid date');
+      } else if (isDateInPast(formatted)) {
+        setStartDateError('Start date cannot be in the past');
+      } else {
+        setStartDateError('');
+        // Check if end date is now invalid
+        if (endDate && isValidDate(endDate) && isEndDateBeforeStart(formatted, endDate)) {
+          setEndDateError('End date must be after start date');
+        } else if (endDateError === 'End date must be after start date') {
+          setEndDateError('');
+        }
+      }
+    }
   };
 
   const handleEndDateChange = (text: string) => {
     const formatted = formatDateInput(text);
     setEndDate(formatted);
+    setEndDateError(''); // Clear error when user types
+    
+    // Validate if date is complete
+    if (formatted.length === 10) {
+      if (!isValidDate(formatted)) {
+        setEndDateError('Please enter a valid date');
+      } else if (isDateInPast(formatted)) {
+        setEndDateError('End date cannot be in the past');
+      } else if (startDate && isValidDate(startDate) && isEndDateBeforeStart(startDate, formatted)) {
+        setEndDateError('End date must be after start date');
+      } else {
+        setEndDateError('');
+      }
+    }
   };
 
   const addFriend = () => {
@@ -87,6 +152,7 @@ export default function CreateTripScreen() {
     router.push({
       pathname: '/set-priorities',
       params: {
+        departureLocation: departureLocation,
         destination: destination,
         startDate: startDate,
         endDate: endDate,
@@ -97,7 +163,12 @@ export default function CreateTripScreen() {
   const isFormValid = 
     destination.trim() !== '' && 
     isValidDate(startDate) && 
-    isValidDate(endDate);
+    isValidDate(endDate) &&
+    !isDateInPast(startDate) &&
+    !isDateInPast(endDate) &&
+    !isEndDateBeforeStart(startDate, endDate) &&
+    startDateError === '' &&
+    endDateError === '';
 
   return (
     <KeyboardAvoidingView
@@ -118,6 +189,26 @@ export default function CreateTripScreen() {
             </Pressable>
             <Text style={styles.headerTitle}>Create New Trip</Text>
             <View style={styles.headerSpacer} />
+          </View>
+
+          {/* Departure Location Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Departure Location</Text>
+            <View style={styles.inputContainer}>
+              <MaterialIcons
+                name="flight-takeoff"
+                size={20}
+                color="#1C4E80"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Where are you departing from?"
+                placeholderTextColor="#9CA3AF"
+                value={departureLocation}
+                onChangeText={setDepartureLocation}
+              />
+            </View>
           </View>
 
           {/* Destination Section */}
@@ -144,40 +235,58 @@ export default function CreateTripScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Travel Dates</Text>
             <View style={styles.dateRow}>
-              <View style={[styles.inputContainer, styles.dateInput]}>
-                <MaterialIcons
-                  name="calendar-today"
-                  size={20}
-                  color="#1C4E80"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="MM/DD/YYYY"
-                  placeholderTextColor="#9CA3AF"
-                  value={startDate}
-                  onChangeText={handleStartDateChange}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
+              <View style={styles.dateInputWrapper}>
+                <View style={[
+                  styles.inputContainer, 
+                  styles.dateInput,
+                  startDateError ? styles.inputError : null
+                ]}>
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={20}
+                    color={startDateError ? "#EF4444" : "#1C4E80"}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="MM/DD/YYYY"
+                    placeholderTextColor="#9CA3AF"
+                    value={startDate}
+                    onChangeText={handleStartDateChange}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+                {startDateError ? (
+                  <Text style={styles.errorText}>{startDateError}</Text>
+                ) : null}
               </View>
               <View style={styles.dateSeparator} />
-              <View style={[styles.inputContainer, styles.dateInput]}>
-                <MaterialIcons
-                  name="event"
-                  size={20}
-                  color="#1C4E80"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="MM/DD/YYYY"
-                  placeholderTextColor="#9CA3AF"
-                  value={endDate}
-                  onChangeText={handleEndDateChange}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
+              <View style={styles.dateInputWrapper}>
+                <View style={[
+                  styles.inputContainer, 
+                  styles.dateInput,
+                  endDateError ? styles.inputError : null
+                ]}>
+                  <MaterialIcons
+                    name="event"
+                    size={20}
+                    color={endDateError ? "#EF4444" : "#1C4E80"}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="MM/DD/YYYY"
+                    placeholderTextColor="#9CA3AF"
+                    value={endDate}
+                    onChangeText={handleEndDateChange}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+                {endDateError ? (
+                  <Text style={styles.errorText}>{endDateError}</Text>
+                ) : null}
               </View>
             </View>
           </View>
@@ -338,13 +447,27 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+  },
+  dateInputWrapper: {
+    flex: 1,
   },
   dateInput: {
     flex: 1,
   },
   dateSeparator: {
     width: 12,
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   addFriendContainer: {
     flexDirection: 'row',

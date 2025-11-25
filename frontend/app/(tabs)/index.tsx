@@ -1,6 +1,7 @@
+import { getTrips, SavedTrip } from '@/services/tripStorage';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,23 +17,99 @@ function Header() {
   );
 }
 
-type TripCardProps = { title: string; date: string; image: any };
+type TripCardProps = { 
+  trip: SavedTrip;
+  onPress: () => void;
+};
 
-function TripCard({ title, date, image }: TripCardProps) {
+function TripCard({ trip, onPress }: TripCardProps) {
+  // Use stored image URL or generate fallback
+  const getImageUrl = () => {
+    if (trip.imageUrl) {
+      return trip.imageUrl;
+    }
+    // Fallback: generate from destination
+    const hashInput = trip.destination;
+    let hash = 0;
+    for (let i = 0; i < hashInput.length; i++) {
+      hash = ((hash << 5) - hash) + hashInput.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const seed = Math.abs(hash);
+    return `https://picsum.photos/seed/${seed}/800/400`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      // Handle MM/DD/YYYY format
+      if (dateStr.includes('/')) {
+        const [month, day, year] = dateStr.split('/');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (isNaN(date.getTime())) {
+          return dateStr; // Return original if invalid
+        }
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      // Handle ISO format or other formats
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        return dateStr; // Return original if invalid
+      }
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const dateRange = trip.startDate && trip.endDate 
+    ? `${formatDate(trip.startDate)} - ${formatDate(trip.endDate)}`
+    : trip.startDate || 'Date TBD';
+
   return (
-    <View style={styles.card}>
-      <Image source={image} style={styles.cardImage} contentFit="cover" />
+    <Pressable onPress={onPress} style={styles.card}>
+      <Image source={{ uri: getImageUrl() }} style={styles.cardImage} contentFit="cover" />
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardDate}>{date}</Text>
+        <Text style={styles.cardTitle}>{trip.destination}</Text>
+        <Text style={styles.cardDate}>{dateRange}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [trips, setTrips] = useState<SavedTrip[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadTrips = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const savedTrips = await getTrips();
+      // Sort by creation date, newest first
+      savedTrips.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setTrips(savedTrips);
+    } catch (error) {
+      console.error('Error loading trips:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Load trips when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadTrips();
+    }, [loadTrips])
+  );
+
+  const handleTripPress = (trip: SavedTrip) => {
+    router.push({
+      pathname: '/trip-detail',
+      params: { tripId: trip.id },
+    });
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}> 
@@ -41,23 +118,32 @@ export default function HomeScreen() {
 
         <Text style={styles.sectionTitle}>Your Trips</Text>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tripsRow}
-        >
-          <TripCard
-            title="Bali, Indonesia"
-            date="Dec 15-22, 2025"
-            image={require('@/assets/images/react-logo.png')}
-          />
-          <View style={{ width: 16 }} />
-          <TripCard
-            title="Paris, France"
-            date="Jan 10-14, 2026"
-            image={require('@/assets/images/react-logo.png')}
-          />
-        </ScrollView>
+        {isLoading ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>Loading trips...</Text>
+          </View>
+        ) : trips.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No trips yet</Text>
+            <Text style={styles.emptyStateSubtext}>Create your first trip to get started!</Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tripsRow}
+          >
+            {trips.map((trip, index) => (
+              <React.Fragment key={trip.id}>
+                {index > 0 && <View style={{ width: 16 }} />}
+                <TripCard
+                  trip={trip}
+                  onPress={() => handleTripPress(trip)}
+                />
+              </React.Fragment>
+            ))}
+          </ScrollView>
+        )}
         <View style={{ height: 120 }} />
       </ScrollView>
 
@@ -152,6 +238,22 @@ const styles = StyleSheet.create({
     color: '#6C6C6C',
     fontSize: 15,
     fontWeight: '600',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6C6C6C',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   ctaContainer: {
     position: 'absolute',
