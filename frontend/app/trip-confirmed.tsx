@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import React, { useEffect } from 'react';
 import {
     Pressable,
@@ -96,6 +97,7 @@ export default function TripConfirmedScreen() {
 
     // Get all trip data from route params
     const destination = (params.destination as string) || 'Unknown Destination';
+    const departureLocation = (params.departureLocation as string) || '';
     const startDate = (params.startDate as string) || '';
     const endDate = (params.endDate as string) || '';
     const totalCost = params.cost ? parseInt(params.cost as string) : 0;
@@ -133,6 +135,83 @@ export default function TripConfirmedScreen() {
     const handleDone = () => {
         // Navigate back to home or trips list
         router.push('/(tabs)');
+    };
+
+    // Generate booking URLs
+    const getFlightBookingUrl = () => {
+        // Format dates for Google Flights (MM/DD/YYYY -> YYYY-MM-DD)
+        const formatDateForUrl = (dateStr: string) => {
+            if (!dateStr || !dateStr.includes('/')) return '';
+            const [month, day, year] = dateStr.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        };
+        
+        const formattedStartDate = formatDateForUrl(startDate);
+        const origin = departureLocation || '';
+        const dest = destination.split(',')[0].trim(); // Get city name only
+        
+        // Google Flights search URL
+        if (origin && formattedStartDate) {
+            return `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(origin)}%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
+        }
+        return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
+    };
+
+    const getHotelBookingUrl = () => {
+        // Format dates for Booking.com (MM/DD/YYYY -> YYYY-MM-DD)
+        const formatDateForUrl = (dateStr: string) => {
+            if (!dateStr || !dateStr.includes('/')) return '';
+            const [month, day, year] = dateStr.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        };
+        
+        const checkin = formatDateForUrl(startDate);
+        const checkout = formatDateForUrl(endDate);
+        const dest = destination.split(',')[0].trim(); // Get city name only
+        const hotelName = hotelInfo.name;
+        
+        // Try to construct a direct hotel link using the hotel name
+        // Booking.com URLs use hotel slugs, so we'll create a search that prioritizes the specific hotel
+        // Format: hotel name + destination for better matching
+        const hotelSearchQuery = `${hotelName}, ${dest}`;
+        
+        // Booking.com search URL with specific hotel name
+        const params = new URLSearchParams({
+            ss: hotelSearchQuery, // Use hotel name + destination for more specific results
+        });
+        if (checkin) params.append('checkin', checkin);
+        if (checkout) params.append('checkout', checkout);
+        
+        // This will show the specific hotel at the top of results
+        return `https://www.booking.com/searchresults.html?${params.toString()}`;
+    };
+
+    const handleBookFlight = async () => {
+        const url = getFlightBookingUrl();
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (canOpen) {
+                await Linking.openURL(url);
+            } else {
+                console.error('Cannot open URL:', url);
+            }
+        } catch (error) {
+            console.error('Error opening flight booking:', error);
+        }
+    };
+
+    const handleBookHotel = async () => {
+        const url = getHotelBookingUrl();
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (canOpen) {
+                await Linking.openURL(url);
+            } else {
+                console.error('Cannot open URL:', url);
+            }
+        } catch (error) {
+            console.error('Error opening hotel booking:', error);
+        }
     };
 
     return (
@@ -209,6 +288,10 @@ export default function TripConfirmedScreen() {
                                 <Text style={styles.infoValue}>{duration}h</Text>
                             </View>
                         </View>
+                        <Pressable style={styles.bookButton} onPress={handleBookFlight}>
+                            <MaterialIcons name="open-in-new" size={18} color="#1C4E80" />
+                            <Text style={styles.bookButtonText}>Book Flight</Text>
+                        </Pressable>
                     </View>
 
                     {/* Divider */}
@@ -243,6 +326,10 @@ export default function TripConfirmedScreen() {
                                 </View>
                             </View>
                         </View>
+                        <Pressable style={styles.bookButton} onPress={handleBookHotel}>
+                            <MaterialIcons name="open-in-new" size={18} color="#1C4E80" />
+                            <Text style={styles.bookButtonText}>Book Hotel</Text>
+                        </Pressable>
                     </View>
 
                     {/* Divider */}
@@ -423,6 +510,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#1E1E1E',
         fontWeight: '500',
+    },
+    bookButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#E3F2FD',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#1C4E80',
+    },
+    bookButtonText: {
+        fontSize: 16,
+        color: '#1C4E80',
+        fontWeight: '600',
     },
     divider: {
         height: 1,

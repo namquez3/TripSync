@@ -1,18 +1,19 @@
+import { deleteTrip, getTripById, SavedTrip } from '@/services/tripStorage';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View,
-    Image,
-    ActivityIndicator,
-    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getTripById, SavedTrip, deleteTrip } from '@/services/tripStorage';
 
 // Mock flight and hotel data based on trip selection
 const getFlightInfo = (destination: string, duration: number) => {
@@ -220,6 +221,86 @@ export default function TripDetailScreen() {
         );
     };
 
+    // Generate booking URLs
+    const getFlightBookingUrl = () => {
+        // Format dates for Google Flights (MM/DD/YYYY -> YYYY-MM-DD)
+        const formatDateForUrl = (dateStr: string) => {
+            if (!dateStr || !dateStr.includes('/')) return '';
+            const [month, day, year] = dateStr.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        };
+        
+        const formattedStartDate = formatDateForUrl(trip.startDate);
+        const dest = trip.destination.split(',')[0].trim(); // Get city name only
+        
+        // Google Flights search URL
+        if (formattedStartDate) {
+            return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
+        }
+        return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
+    };
+
+    const getHotelBookingUrl = () => {
+        // Format dates for Booking.com (MM/DD/YYYY -> YYYY-MM-DD)
+        const formatDateForUrl = (dateStr: string) => {
+            if (!dateStr || !dateStr.includes('/')) return '';
+            const [month, day, year] = dateStr.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        };
+        
+        const checkin = formatDateForUrl(trip.startDate);
+        const checkout = formatDateForUrl(trip.endDate);
+        const dest = trip.destination.split(',')[0].trim(); // Get city name only
+        const hotelName = hotelInfo.name;
+        
+        // Try to construct a direct hotel link using the hotel name
+        // Booking.com URLs use hotel slugs, so we'll create a search that prioritizes the specific hotel
+        // Format: hotel name + destination for better matching
+        const hotelSearchQuery = `${hotelName}, ${dest}`;
+        
+        // Booking.com search URL with specific hotel name
+        const params = new URLSearchParams({
+            ss: hotelSearchQuery, // Use hotel name + destination for more specific results
+        });
+        if (checkin) params.append('checkin', checkin);
+        if (checkout) params.append('checkout', checkout);
+        
+        // This will show the specific hotel at the top of results
+        return `https://www.booking.com/searchresults.html?${params.toString()}`;
+    };
+
+    const handleBookFlight = async () => {
+        const url = getFlightBookingUrl();
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (canOpen) {
+                await Linking.openURL(url);
+            } else {
+                console.error('Cannot open URL:', url);
+                Alert.alert('Error', 'Unable to open flight booking. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error opening flight booking:', error);
+            Alert.alert('Error', 'Failed to open flight booking. Please try again.');
+        }
+    };
+
+    const handleBookHotel = async () => {
+        const url = getHotelBookingUrl();
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (canOpen) {
+                await Linking.openURL(url);
+            } else {
+                console.error('Cannot open URL:', url);
+                Alert.alert('Error', 'Unable to open hotel booking. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error opening hotel booking:', error);
+            Alert.alert('Error', 'Failed to open hotel booking. Please try again.');
+        }
+    };
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
@@ -295,6 +376,10 @@ export default function TripDetailScreen() {
                                 <Text style={styles.infoValue}>{trip.duration}h</Text>
                             </View>
                         </View>
+                        <Pressable style={styles.bookButton} onPress={handleBookFlight}>
+                            <MaterialIcons name="open-in-new" size={18} color="#1C4E80" />
+                            <Text style={styles.bookButtonText}>Book Flight</Text>
+                        </Pressable>
                     </View>
 
                     {/* Divider */}
@@ -329,6 +414,10 @@ export default function TripDetailScreen() {
                                 </View>
                             </View>
                         </View>
+                        <Pressable style={styles.bookButton} onPress={handleBookHotel}>
+                            <MaterialIcons name="open-in-new" size={18} color="#1C4E80" />
+                            <Text style={styles.bookButtonText}>Book Hotel</Text>
+                        </Pressable>
                     </View>
 
                     {/* Itinerary */}
@@ -569,6 +658,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#1E1E1E',
         fontWeight: '500',
+    },
+    bookButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#E3F2FD',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#1C4E80',
+    },
+    bookButtonText: {
+        fontSize: 16,
+        color: '#1C4E80',
+        fontWeight: '600',
     },
     divider: {
         height: 1,

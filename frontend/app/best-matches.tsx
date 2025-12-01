@@ -2,14 +2,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,6 +37,76 @@ interface TripRecommendation {
     perPersonUSD?: number;
   };
 }
+
+// Mock trip data for fallback
+const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
+  {
+    id: '1',
+    destination: 'Santorini, Greece',
+    cost: 1800,
+    duration: 12,
+    accommodation: '5-star Resort',
+    image: require('@/assets/images/react-logo.png'),
+    description: 'Direct Flight + Luxury Resort',
+    isGroupMatch: true,
+  },
+  {
+    id: '2',
+    destination: 'Bali, Indonesia',
+    cost: 1200,
+    duration: 16,
+    accommodation: '4-star Hotel',
+    image: require('@/assets/images/react-logo.png'),
+    description: 'Scenic Route + Beach Resort',
+    isGroupMatch: true,
+  },
+  {
+    id: '3',
+    destination: 'Tokyo, Japan',
+    cost: 2200,
+    duration: 14,
+    accommodation: '5-star Hotel',
+    image: require('@/assets/images/react-logo.png'),
+    description: 'Fast Direct + City Center',
+    isGroupMatch: true,
+  },
+];
+
+// Simulate AI-based matching algorithm
+const calculateMatchPercentage = (
+  trip: Omit<TripRecommendation, 'matchPercentage'>,
+  budget: number,
+  travelStyle: number,
+  planning: number
+): number => {
+  let score = 0;
+  let maxScore = 0;
+
+  // Budget matching (0-100 scale, where 0 = budget, 100 = luxury)
+  const budgetPreference = budget;
+  const normalizedCost = (trip.cost / 3000) * 100;
+  const budgetScore = 100 - Math.abs(budgetPreference - normalizedCost);
+  score += budgetScore * 0.4;
+  maxScore += 100 * 0.4;
+
+  // Travel Style matching (0-100 scale, where 0 = speed, 100 = comfort)
+  const travelStylePreference = travelStyle;
+  const normalizedDuration = (trip.duration / 20) * 100;
+  const travelScore = 100 - Math.abs(travelStylePreference - normalizedDuration);
+  score += travelScore * 0.35;
+  maxScore += 100 * 0.35;
+
+  // Planning matching (0-100 scale, where 0 = flexible, 100 = certain)
+  const planningPreference = planning;
+  const planningScore = trip.isGroupMatch
+    ? Math.min(100, planningPreference + 20)
+    : Math.max(0, planningPreference - 20);
+  score += planningScore * 0.25;
+  maxScore += 100 * 0.25;
+
+  const matchPercentage = Math.round((score / maxScore) * 100);
+  return Math.max(60, Math.min(99, matchPercentage));
+};
 
 // Helper function to extract key words from activity text
 function extractActivityKeywords(activity: string): string {
@@ -277,9 +347,17 @@ useEffect(() => {
         })
       });
 
+      // Check if response is ok
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Backend error response:', errorText);
+        throw new Error(`Backend error (${resp.status}): ${errorText || 'Unknown error'}`);
+      }
+
       const json = await resp.json();
       if (!json.success) {
-        throw new Error(json.error || 'Failed to generate trips');
+        console.error('Backend returned error:', json.error, json.message);
+        throw new Error(json.error || json.message || 'Failed to generate trips');
       }
 
       // Map the API trip format to your UI TripRecommendation
@@ -324,9 +402,18 @@ useEffect(() => {
         });
 
       setRecommendations(mapped);
-    } catch (err) {
-      console.error(err);
-      // fallback: keep mockTrips or show error UI
+    } catch (err: any) {
+      console.error('Error fetching trips from API:', err);
+      console.error('Error details:', err.message, err.stack);
+      
+      // Fallback to mock data if API fails
+      console.warn('Falling back to mock trip data');
+      const mockTripsWithMatches = mockTrips.map((trip) => ({
+        ...trip,
+        matchPercentage: calculateMatchPercentage(trip, budget, travelStyle, planning),
+      }));
+      mockTripsWithMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
+      setRecommendations(mockTripsWithMatches.slice(0, 3));
     } finally {
       setIsLoading(false);
     }
@@ -359,6 +446,7 @@ useEffect(() => {
             pathname: '/trip-confirmed',
             params: {
                 destination: trip.destination,
+                departureLocation: departureLocation,
                 startDate: startDate,
                 endDate: endDate,
                 cost: (trip.cost || 0).toString(),

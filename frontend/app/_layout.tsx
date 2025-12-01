@@ -15,17 +15,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          <Stack.Screen name="create-trip" options={{ headerShown: false, presentation: 'card' }} />
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="create-trip" options={{ headerShown: false, presentation: 'card' }} />
           <Stack.Screen name="set-priorities" options={{ headerShown: false, presentation: 'card' }} />
           <Stack.Screen name="best-matches" options={{ headerShown: false, presentation: 'card' }} />
           <Stack.Screen name="trip-confirmed" options={{ headerShown: false, presentation: 'card' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
