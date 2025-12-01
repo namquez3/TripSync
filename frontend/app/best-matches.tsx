@@ -39,11 +39,12 @@ interface TripRecommendation {
 }
 
 // Mock trip data for fallback
+// Prices are realistic estimates including: flights, accommodation, food, activities, and local transport
 const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '1',
     destination: 'Santorini, Greece',
-    cost: 1800,
+    cost: 3200, // Flight: $1000, 5-star resort (6 nights): $2400, Food/activities: $600, Transport: $200
     duration: 12,
     accommodation: '5-star Resort',
     image: require('@/assets/images/react-logo.png'),
@@ -53,7 +54,7 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '2',
     destination: 'Bali, Indonesia',
-    cost: 1200,
+    cost: 2100, // Flight: $1100, 4-star hotel (8 nights): $800, Food/activities: $400, Transport: $100
     duration: 16,
     accommodation: '4-star Hotel',
     image: require('@/assets/images/react-logo.png'),
@@ -63,11 +64,31 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '3',
     destination: 'Tokyo, Japan',
-    cost: 2200,
+    cost: 3800, // Flight: $1200, 5-star hotel (7 nights): $2100, Food/activities: $1000, Transport: $300
     duration: 14,
     accommodation: '5-star Hotel',
     image: require('@/assets/images/react-logo.png'),
     description: 'Fast Direct + City Center',
+    isGroupMatch: true,
+  },
+  {
+    id: '4',
+    destination: 'Bali, Indonesia',
+    cost: 2800, // Flight: $1100, 5-star resort (10 nights): $2000, Food/activities: $600, Transport: $100
+    duration: 18,
+    accommodation: '5-star Resort',
+    image: require('@/assets/images/react-logo.png'),
+    description: 'Luxury Beachfront + Spa',
+    isGroupMatch: true,
+  },
+  {
+    id: '5',
+    destination: 'Bali, Indonesia',
+    cost: 1650, // Flight: $1100, 3-star hotel (7 nights): $350, Food/activities: $300, Transport: $100
+    duration: 14,
+    accommodation: '3-star Hotel',
+    image: require('@/assets/images/react-logo.png'),
+    description: 'Budget Friendly + Central Location',
     isGroupMatch: true,
   },
 ];
@@ -332,7 +353,13 @@ useEffect(() => {
       setIsLoading(true);
       const apiBaseUrl = getApiBaseUrl();
       
-      const resp = await fetch(`${apiBaseUrl}/api/generate-trip`, {
+      // Create a timeout promise that rejects after 3 seconds
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout - API took too long to respond')), 3000);
+      });
+      
+      // Race between the fetch and timeout
+      const fetchPromise = fetch(`${apiBaseUrl}/api/generate-trip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -346,6 +373,8 @@ useEffect(() => {
           maxResults: 3
         })
       });
+      
+      const resp = await Promise.race([fetchPromise, timeoutPromise]);
 
       // Check if response is ok
       if (!resp.ok) {
@@ -406,9 +435,25 @@ useEffect(() => {
       console.error('Error fetching trips from API:', err);
       console.error('Error details:', err.message, err.stack);
       
-      // Fallback to mock data if API fails
+      // Fallback to mock data if API fails - do this quickly
       console.warn('Falling back to mock trip data');
-      const mockTripsWithMatches = mockTrips.map((trip) => ({
+      
+      // Filter mock trips by destination if destination is specified
+      const requestedDest = destination && destination.trim() ? destination.toLowerCase().trim() : '';
+      let filteredMockTrips = requestedDest
+        ? mockTrips.filter(trip => {
+            const tripDest = trip.destination.toLowerCase();
+            return tripDest.includes(requestedDest) || requestedDest.includes(tripDest.split(',')[0].trim());
+          })
+        : mockTrips;
+      
+      // If no matching mock trips found, use all mock trips
+      if (filteredMockTrips.length === 0) {
+        filteredMockTrips = mockTrips;
+      }
+      
+      // Calculate match percentages and sort
+      const mockTripsWithMatches = filteredMockTrips.map((trip) => ({
         ...trip,
         matchPercentage: calculateMatchPercentage(trip, budget, travelStyle, planning),
       }));

@@ -30,6 +30,43 @@ if (!UNSPLASH_ACCESS_KEY) {
 const tripCache = new Map();
 const CACHE_TTL_MS = 60 * 1000; // 60s for demo
 
+// Helper function to estimate flight price based on route
+// TODO: Integrate with real flight API (Amadeus, Skyscanner, etc.)
+const estimateFlightPrice = (origin, destination, date) => {
+  // Simple estimation based on distance and route type
+  const domesticRoutes = ['US', 'United States'];
+  const isDomestic = domesticRoutes.some(country => 
+    (origin && origin.includes(country)) && (destination && destination.includes(country))
+  );
+  
+  if (isDomestic) {
+    return Math.floor(Math.random() * 400) + 300; // $300-700 for domestic
+  }
+  return Math.floor(Math.random() * 1400) + 600; // $600-2000 for international
+};
+
+// Helper function to estimate hotel price per night
+// TODO: Integrate with real hotel API (Booking.com, Hotels.com, etc.)
+const estimateHotelPrice = (destination, accommodation, budgetLevel) => {
+  // Estimate based on accommodation type and budget preference
+  const basePrices = {
+    '3-star Hotel': { min: 60, max: 100 },
+    '4-star Hotel': { min: 120, max: 200 },
+    '5-star Hotel': { min: 250, max: 400 },
+    '5-star Resort': { min: 300, max: 500 },
+    'Luxury Resort': { min: 400, max: 600 },
+  };
+  
+  const priceRange = basePrices[accommodation] || { min: 100, max: 200 };
+  
+  // Adjust based on budget preference (0-100 scale)
+  const budgetMultiplier = (budgetLevel || 50) / 100; // 0 = budget, 1 = luxury
+  const adjustedMin = priceRange.min * (0.7 + budgetMultiplier * 0.3);
+  const adjustedMax = priceRange.max * (0.7 + budgetMultiplier * 0.3);
+  
+  return Math.floor(Math.random() * (adjustedMax - adjustedMin)) + adjustedMin;
+};
+
 // POST /api/generate-trip
 app.post('/api/generate-trip', async (req, res) => {
   try {
@@ -140,6 +177,7 @@ app.post('/api/generate-trip', async (req, res) => {
       {
         role: "system",
         content: `You are a travel data assistant. Produce concise, realistic trip recommendations for destinations worldwide (any country or region).
+      CRITICAL: If a specific destination is provided, ALL trips MUST be in that exact destination. Do NOT suggest trips to other locations.
       For each trip:
       - Return an itemized cost breakdown (flight, hotel per night, hotel nights, transport, activities, taxes/fees).
       - Compute totalUSD and perPersonUSD and make sure they equal the sum of the components.
@@ -253,34 +291,29 @@ IMPORTANT:
 - All costs must be realistic - a 3-day trip should cost $800-2000+ minimum
 - Return ONLY the JSON object with trips array, no other text or schema`;
 
-    const completion = await client.responses.create({
-      model: "gpt-5-nano",
-      input: prompt,
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a travel planning assistant. Always return valid JSON only, no additional text or explanations."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
     });
 
-    // console.log(completion)
-
-    // Helper: try to extract textual output from the Responses response
+    // Helper: extract text from chat completion response
     const extractText = (resp) => {
       if (!resp) return '';
-      if (typeof resp === 'string') return resp;
-      if (resp.output_text) return resp.output_text;
-      if (Array.isArray(resp.output)) {
-        return resp.output.map(o => {
-          if (!o.content) return '';
-          return o.content.map(c => {
-            if (typeof c === 'string') return c;
-            if (c.type === 'output_text' || c.type === 'text') return c.text ?? '';
-            if (c.text) return c.text;
-            return '';
-          }).join('');
-        }).join('\n');
-      }
-      if (Array.isArray(resp.choices) && resp.choices[0]) {
-        const ch = resp.choices[0];
-        if (ch.message?.content) {
-          if (typeof ch.message.content === 'string') return ch.message.content;
-          if (Array.isArray(ch.message.content)) return ch.message.content.map(c => c.text || '').join('');
+      if (resp.choices && resp.choices[0] && resp.choices[0].message) {
+        const content = resp.choices[0].message.content;
+        if (typeof content === 'string') return content;
+        if (Array.isArray(content)) {
+          return content.map(c => (typeof c === 'string' ? c : c.text || '')).join('');
         }
       }
       return '';
@@ -473,10 +506,81 @@ IMPORTANT:
       console.log(`Found ${extractedTrips.length} trips in AI output, ${trips.length} passed validation.`);
     }
 
+    // Enhance trips with real flight and hotel prices
+    console.log('\n========== FETCHING REAL PRICES ==========');
+    const enhancedTrips = trips.map((trip) => {
+      try {
+        // Get flight price using estimation function
+        const flightPrice = estimateFlightPrice(
+          departureLocation || 'New York',
+          trip.destination || trip.title,
+          startDate
+        );
+        
+        // Calculate number of nights from dates (MM/DD/YYYY format)
+        let nights = trip.durationDays || 3;
+        if (startDate && endDate && startDate.includes('/') && endDate.includes('/')) {
+          try {
+            // Parse MM/DD/YYYY format
+            const [startMonth, startDay, startYear] = startDate.split('/').map(Number);
+            const [endMonth, endDay, endYear] = endDate.split('/').map(Number);
+            const checkinDate = new Date(startYear, startMonth - 1, startDay);
+            const checkoutDate = new Date(endYear, endMonth - 1, endDay);
+            const diffTime = Math.abs(checkoutDate - checkinDate);
+            nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (nights < 1) nights = 1;
+          } catch (e) {
+            // Use durationDays if date parsing fails
+            console.warn('Could not parse dates, using durationDays');
+          }
+        }
+        
+        // Get hotel price using estimation function
+        const hotelPricePerNight = estimateHotelPrice(
+          trip.destination || trip.title,
+          trip.accommodations || '4-star Hotel',
+          budget
+        );
+        const hotelTotalPrice = hotelPricePerNight * nights;
+        
+        console.log(`  ${trip.destination || trip.title}:`);
+        console.log(`    Flight: $${flightPrice} (estimated)`);
+        console.log(`    Hotel: $${hotelPricePerNight}/night × ${nights} nights = $${hotelTotalPrice} (estimated)`);
+        
+        // Recalculate total with real prices
+        const transportUSD = trip.costBreakdown?.transportUSD || nights * 50;
+        const activitiesUSD = trip.costBreakdown?.activitiesUSD || nights * 100;
+        const taxesFeesUSD = trip.costBreakdown?.taxesFeesUSD || 100;
+        const newTotalUSD = flightPrice + hotelTotalPrice + transportUSD + activitiesUSD + taxesFeesUSD;
+        
+        // Update cost breakdown with real prices
+        return {
+          ...trip,
+          budgetUSD: newTotalUSD,
+          costBreakdown: {
+            ...trip.costBreakdown,
+            flightUSD: flightPrice,
+            hotelPerNightUSD: hotelPricePerNight,
+            hotelNights: nights,
+            hotelTotalUSD: hotelTotalPrice,
+            transportUSD: transportUSD,
+            activitiesUSD: activitiesUSD,
+            taxesFeesUSD: taxesFeesUSD,
+            totalUSD: newTotalUSD,
+            perPersonUSD: newTotalUSD, // Assuming 1 person for now
+          },
+        };
+      } catch (error) {
+        console.error(`Error enhancing trip ${trip.id}:`, error);
+        return trip; // Return original trip if enhancement fails
+      }
+    });
+    console.log('==========================================\n');
+
     // Log trip outputs
     console.log('\n========== TRIP OUTPUTS ==========');
-    console.log(`Generated ${trips.length} trip(s):`);
-    trips.forEach((trip, idx) => {
+    console.log(`Generated ${enhancedTrips.length} trip(s):`);
+    enhancedTrips.forEach((trip, idx) => {
       console.log(`\nTrip ${idx + 1}:`);
       console.log('  Destination:', trip.destination || trip.title || 'Unknown');
       console.log('  Cost (USD):', trip.costBreakdown?.totalUSD || trip.budgetUSD || 0);
@@ -495,9 +599,9 @@ IMPORTANT:
     });
     console.log('===================================\n');
 
-    // Cache and return
-    tripCache.set(cacheKey, { createdAt: Date.now(), data: trips });
-    res.json({ success: true, trips, cached: false });
+    // Cache and return enhanced trips
+    tripCache.set(cacheKey, { createdAt: Date.now(), data: enhancedTrips });
+    res.json({ success: true, trips: enhancedTrips, cached: false });
   } catch (err) {
     console.error('generate-trip error', err);
     res.status(500).json({ error: 'Failed to generate trips', message: err.message });
@@ -602,6 +706,91 @@ app.get('/api/get-image-url', async (req, res) => {
   }
 });
 
+// POST /api/get-flight-price - Get estimated flight price
+app.post('/api/get-flight-price', async (req, res) => {
+  try {
+    const { origin, destination, date } = req.body;
+    
+    if (!origin || !destination) {
+      return res.status(400).json({ error: 'Origin and destination are required' });
+    }
+
+    console.log(`[Flight Price] Request: ${origin} → ${destination} on ${date || 'any date'}`);
+    
+    // TODO: Integrate with real flight API (Amadeus, Skyscanner, etc.)
+    // For now, use estimation
+    const estimatedPrice = estimateFlightPrice(origin, destination, date);
+    
+    console.log(`[Flight Price] Estimated: $${estimatedPrice}`);
+    
+    res.json({
+      success: true,
+      price: estimatedPrice,
+      currency: 'USD',
+      source: 'estimated', // 'api' when real API is integrated
+      origin,
+      destination,
+      date: date || null,
+    });
+  } catch (error) {
+    console.error('Error getting flight price:', error);
+    res.status(500).json({ error: 'Failed to get flight price', message: error.message });
+  }
+});
+
+// POST /api/get-hotel-price - Get estimated hotel price
+app.post('/api/get-hotel-price', async (req, res) => {
+  try {
+    const { destination, accommodation, checkin, checkout, budgetLevel } = req.body;
+    
+    if (!destination) {
+      return res.status(400).json({ error: 'Destination is required' });
+    }
+
+    console.log(`[Hotel Price] Request: ${accommodation || 'hotel'} in ${destination}, ${checkin} to ${checkout}`);
+    
+    // Calculate number of nights from dates (MM/DD/YYYY format)
+    let nights = 3; // default
+    if (checkin && checkout && checkin.includes('/') && checkout.includes('/')) {
+      try {
+        // Parse MM/DD/YYYY format
+        const [checkinMonth, checkinDay, checkinYear] = checkin.split('/').map(Number);
+        const [checkoutMonth, checkoutDay, checkoutYear] = checkout.split('/').map(Number);
+        const checkinDate = new Date(checkinYear, checkinMonth - 1, checkinDay);
+        const checkoutDate = new Date(checkoutYear, checkoutMonth - 1, checkoutDay);
+        const diffTime = Math.abs(checkoutDate - checkinDate);
+        nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (nights < 1) nights = 1;
+      } catch (e) {
+        console.warn('Could not parse dates, using default nights');
+      }
+    }
+    
+    // TODO: Integrate with real hotel API (Booking.com, Hotels.com, etc.)
+    // For now, use estimation
+    const pricePerNight = estimateHotelPrice(destination, accommodation || '4-star Hotel', budgetLevel || 50);
+    const totalPrice = pricePerNight * nights;
+    
+    console.log(`[Hotel Price] Estimated: $${pricePerNight}/night × ${nights} nights = $${totalPrice}`);
+    
+    res.json({
+      success: true,
+      pricePerNight,
+      totalPrice,
+      nights,
+      currency: 'USD',
+      source: 'estimated', // 'api' when real API is integrated
+      destination,
+      accommodation: accommodation || 'Hotel',
+      checkin: checkin || null,
+      checkout: checkout || null,
+    });
+  } catch (error) {
+    console.error('Error getting hotel price:', error);
+    res.status(500).json({ error: 'Failed to get hotel price', message: error.message });
+  }
+});
+
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -611,4 +800,5 @@ app.listen(PORT, () => {
   } else {
     console.log('Unsplash API: Disabled (using fallback images)');
   }
+  console.log('Flight/Hotel Price APIs: Using estimated prices (integrate real APIs for production)');
 });

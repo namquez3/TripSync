@@ -13,45 +13,70 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveTrip } from '@/services/tripStorage';
 
+// Helper function to format date (MM/DD/YYYY) to readable format
+const formatFlightDate = (dateStr: string): string => {
+    if (!dateStr || !dateStr.includes('/')) return '';
+    try {
+        const [month, day, year] = dateStr.split('/');
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = monthNames[parseInt(month, 10) - 1] || month;
+        return `${monthName} ${day}, ${year}`;
+    } catch {
+        return dateStr;
+    }
+};
+
 // Mock flight and hotel data based on trip selection
-const getFlightInfo = (destination: string, duration: number) => {
-    const flights: Record<string, { airline: string; flightNumber: string; departure: string; arrival: string }> = {
+const getFlightInfo = (destination: string, duration: number, startDate?: string, endDate?: string) => {
+    const flights: Record<string, { airline: string; flightNumber: string; departureTime: string; arrivalTime: string }> = {
         'Santorini, Greece': {
             airline: 'Delta Airlines',
             flightNumber: 'DL 245',
-            departure: '8:00 AM',
-            arrival: '4:00 PM',
+            departureTime: '8:00 AM',
+            arrivalTime: '4:00 PM',
         },
         'Bali, Indonesia': {
             airline: 'Singapore Airlines',
             flightNumber: 'SQ 892',
-            departure: '10:30 AM',
-            arrival: '2:30 AM+1',
+            departureTime: '10:30 AM',
+            arrivalTime: '2:30 AM+1',
         },
         'Tokyo, Japan': {
             airline: 'Japan Airlines',
             flightNumber: 'JL 61',
-            departure: '11:00 AM',
-            arrival: '3:00 PM',
+            departureTime: '11:00 AM',
+            arrivalTime: '3:00 PM',
         },
         'Paris, France': {
             airline: 'Air France',
             flightNumber: 'AF 83',
-            departure: '9:15 AM',
-            arrival: '11:30 PM',
+            departureTime: '9:15 AM',
+            arrivalTime: '11:30 PM',
         },
         'Dubai, UAE': {
             airline: 'Emirates',
             flightNumber: 'EK 201',
-            departure: '10:00 AM',
-            arrival: '8:00 AM+1',
+            departureTime: '10:00 AM',
+            arrivalTime: '8:00 AM+1',
         },
     };
-    return flights[destination] || {
+    
+    const flightData = flights[destination] || {
         airline: 'International Airlines',
         flightNumber: 'IA 123',
-        departure: '9:00 AM',
-        arrival: '5:00 PM',
+        departureTime: '9:00 AM',
+        arrivalTime: '5:00 PM',
+    };
+    
+    // Format departure and arrival with dates
+    const departureDate = startDate ? formatFlightDate(startDate) : '';
+    const arrivalDate = endDate ? formatFlightDate(endDate) : '';
+    
+    return {
+        airline: flightData.airline,
+        flightNumber: flightData.flightNumber,
+        departure: startDate ? `${flightData.departureTime}, ${departureDate}` : flightData.departureTime,
+        arrival: endDate ? `${flightData.arrivalTime}, ${arrivalDate}` : flightData.arrivalTime,
     };
 };
 
@@ -105,7 +130,7 @@ export default function TripConfirmedScreen() {
     const duration = params.duration ? parseInt(params.duration as string) : 0;
 
     // Get flight and hotel information
-    const flightInfo = getFlightInfo(destination, duration);
+    const flightInfo = getFlightInfo(destination, duration, startDate, endDate);
     const hotelInfo = getHotelInfo(destination, accommodation);
 
     // Save trip when component mounts
@@ -148,11 +173,15 @@ export default function TripConfirmedScreen() {
         
         const formattedStartDate = formatDateForUrl(startDate);
         const origin = departureLocation || '';
-        const dest = destination.split(',')[0].trim(); // Get city name only
+        // Use the actual destination entered by the user in Create New Trip
+        const dest = destination.trim();
         
-        // Google Flights search URL
+        // Google Flights search URL using the user's destination and departure location
         if (origin && formattedStartDate) {
             return `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(origin)}%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
+        }
+        if (formattedStartDate) {
+            return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
         }
         return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
     };
@@ -167,22 +196,19 @@ export default function TripConfirmedScreen() {
         
         const checkin = formatDateForUrl(startDate);
         const checkout = formatDateForUrl(endDate);
-        const dest = destination.split(',')[0].trim(); // Get city name only
-        const hotelName = hotelInfo.name;
         
-        // Try to construct a direct hotel link using the hotel name
-        // Booking.com URLs use hotel slugs, so we'll create a search that prioritizes the specific hotel
-        // Format: hotel name + destination for better matching
+        // Search for the specific hotel name with destination
+        const hotelName = hotelInfo.name;
+        const dest = destination.trim();
         const hotelSearchQuery = `${hotelName}, ${dest}`;
         
-        // Booking.com search URL with specific hotel name
+        // Booking.com search URL using the hotel name and destination
         const params = new URLSearchParams({
-            ss: hotelSearchQuery, // Use hotel name + destination for more specific results
+            ss: hotelSearchQuery, // Search for the specific hotel name
         });
         if (checkin) params.append('checkin', checkin);
         if (checkout) params.append('checkout', checkout);
         
-        // This will show the specific hotel at the top of results
         return `https://www.booking.com/searchresults.html?${params.toString()}`;
     };
 
