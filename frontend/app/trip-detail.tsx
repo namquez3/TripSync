@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Helper function to format date (MM/DD/YYYY) to readable format
 const formatFlightDate = (dateStr: string): string => {
     if (!dateStr || !dateStr.includes('/')) return '';
     try {
@@ -28,7 +27,6 @@ const formatFlightDate = (dateStr: string): string => {
     }
 };
 
-// Mock flight and hotel data based on trip selection
 const getFlightInfo = (destination: string, duration: number, startDate?: string, endDate?: string) => {
     const flights: Record<string, { airline: string; flightNumber: string; departureTime: string; arrivalTime: string }> = {
         'Santorini, Greece': {
@@ -69,7 +67,6 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
         },
     };
     
-    // Determine airline based on destination region
     const getDefaultAirline = (dest: string): string => {
         const destLower = dest.toLowerCase();
         if (destLower.includes('miami') || destLower.includes('florida') || destLower.includes('united states') || destLower.includes('usa')) {
@@ -87,7 +84,7 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
         } else if (destLower.includes('brazil') || destLower.includes('south america')) {
             return 'LATAM Airlines';
         }
-        return 'American Airlines'; // Default for US destinations
+        return 'American Airlines';
     };
     
     const defaultAirline = getDefaultAirline(destination);
@@ -117,7 +114,6 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
 };
 
 const getHotelInfo = (destination: string, accommodation: string | object) => {
-    // Ensure accommodation is always a string
     const accommodationStr = typeof accommodation === 'string' 
         ? accommodation 
         : (accommodation && typeof accommodation === 'object' 
@@ -167,7 +163,6 @@ const getHotelInfo = (destination: string, accommodation: string | object) => {
         return hotelData;
     }
     
-    // Fallback: use accommodation string to create hotel name
     return {
         name: accommodationStr && accommodationStr !== 'Hotel' ? `${accommodationStr} - ${destination}` : `${destination} Hotel`,
         address: destination,
@@ -224,9 +219,7 @@ export default function TripDetailScreen() {
         );
     }
 
-    // Get flight and hotel information
     const flightInfo = getFlightInfo(trip.destination, trip.duration, trip.startDate, trip.endDate);
-    // Ensure accommodation is a string before passing to getHotelInfo
     const accommodationStr = typeof trip.accommodation === 'string' 
         ? trip.accommodation 
         : (trip.accommodation && typeof trip.accommodation === 'object' 
@@ -234,12 +227,10 @@ export default function TripDetailScreen() {
             : String(trip.accommodation || 'Hotel'));
     const hotelInfo = getHotelInfo(trip.destination, accommodationStr);
 
-    // Use stored image URL or generate fallback
     const getImageUrl = () => {
         if (trip.imageUrl) {
             return trip.imageUrl;
         }
-        // Fallback: generate from destination
         const hashInput = trip.destination;
         let hash = 0;
         for (let i = 0; i < hashInput.length; i++) {
@@ -253,19 +244,17 @@ export default function TripDetailScreen() {
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '';
         try {
-            // Handle MM/DD/YYYY format
             if (dateStr.includes('/')) {
                 const [month, day, year] = dateStr.split('/');
                 const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                 if (isNaN(date.getTime())) {
-                    return dateStr; // Return original if invalid
+                    return dateStr;
                 }
                 return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
             }
-            // Handle ISO format or other formats
             const date = new Date(dateStr);
             if (isNaN(date.getTime())) {
-                return dateStr; // Return original if invalid
+                return dateStr;
             }
             return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         } catch {
@@ -299,9 +288,7 @@ export default function TripDetailScreen() {
         );
     };
 
-    // Generate booking URLs
     const getFlightBookingUrl = () => {
-        // Format dates for Google Flights (MM/DD/YYYY -> YYYY-MM-DD)
         const formatDateForUrl = (dateStr: string) => {
             if (!dateStr || !dateStr.includes('/')) return '';
             const [month, day, year] = dateStr.split('/');
@@ -310,22 +297,17 @@ export default function TripDetailScreen() {
         
         const formattedStartDate = formatDateForUrl(trip.startDate);
         const formattedEndDate = formatDateForUrl(trip.endDate);
-        // Use the actual destination entered by the user in Create New Trip
         const dest = trip.destination.trim();
         
-        // Google Flights search URL with round trip dates
         if (formattedStartDate && formattedEndDate) {
-            // Round trip with both dates
             return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20${formattedStartDate}%20returning%20${formattedEndDate}`;
         } else if (formattedStartDate) {
-            // One-way with date
             return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
         }
         return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
     };
 
     const getHotelBookingUrl = () => {
-        // Format dates for Booking.com (MM/DD/YYYY -> YYYY-MM-DD)
         const formatDateForUrl = (dateStr: string) => {
             if (!dateStr || !dateStr.includes('/')) return '';
             const [month, day, year] = dateStr.split('/');
@@ -336,10 +318,8 @@ export default function TripDetailScreen() {
         const checkout = formatDateForUrl(trip.endDate);
         const dest = trip.destination.trim();
         
-        // Search for hotels in the destination
         const hotelSearchQuery = dest;
         
-        // Booking.com search URL using the destination and dates
         const params = new URLSearchParams({
             ss: hotelSearchQuery, // Search for hotels in destination
         });

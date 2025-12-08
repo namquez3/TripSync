@@ -3,12 +3,10 @@ import 'dotenv/config';
 import express from 'express';
 import OpenAI from "openai";
 
-// Minimal Express setup so routes below have an `app` to attach to.
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Ensure the API key is present and provide a clear error message if not.
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
   console.error("Missing OPENAI_API_KEY environment variable.");
@@ -18,7 +16,6 @@ if (!OPENAI_API_KEY) {
 
 const client = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// Unsplash API key (optional - if not provided, will use fallback images)
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 if (!UNSPLASH_ACCESS_KEY) {
   console.warn("UNSPLASH_ACCESS_KEY not set. Images will use fallback service.");
@@ -26,36 +23,25 @@ if (!UNSPLASH_ACCESS_KEY) {
   console.warn("Add UNSPLASH_ACCESS_KEY=your_key to backend/.env");
 }
 
-// Simple in-memory cache: key = JSON.stringify(preferences), value = { createdAt, data }
 const tripCache = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 60s for demo
+const CACHE_TTL_MS = 60 * 1000;
 
-// Helper function to fetch real flight price from Amadeus API or use realistic estimates
-// Uses actual market data patterns for more accurate pricing
 const estimateFlightPrice = async (origin, destination, date) => {
   // Extract city names from full location strings
   const getCityName = (location) => {
     if (!location) return '';
-    // Remove country names and common suffixes
     return location.split(',')[0].trim();
   };
   
   const originCity = getCityName(origin);
   const destCity = getCityName(destination);
   
-  // Realistic flight price ranges based on actual market data (2024)
   const routePrices = {
-    // Domestic US routes
     'domestic': { min: 250, max: 800, avg: 450 },
-    // Short international (US to Canada, Mexico, Caribbean)
     'short_international': { min: 300, max: 900, avg: 550 },
-    // Medium international (US to Europe, Central America)
     'medium_international': { min: 600, max: 1500, avg: 950 },
-    // Long international (US to Asia, Australia, Africa, Middle East)
     'long_international': { min: 900, max: 2500, avg: 1500 },
   };
-  
-  // Determine route type based on destination
   const isDomestic = origin && origin.includes('United States') && destination && destination.includes('United States');
   const isShortIntl = ['Canada', 'Mexico', 'Caribbean', 'Bahamas', 'Jamaica'].some(loc => 
     destination && destination.includes(loc)
@@ -72,20 +58,16 @@ const estimateFlightPrice = async (origin, destination, date) => {
   } else if (isLongIntl) {
     priceRange = routePrices.long_international;
   } else {
-    priceRange = routePrices.medium_international; // Default to Europe, etc.
+    priceRange = routePrices.medium_international;
   }
   
-  // Add some variation but keep it realistic
-  const variation = (priceRange.max - priceRange.min) * 0.2; // 20% variation
+  const variation = (priceRange.max - priceRange.min) * 0.2;
   const price = priceRange.avg + (Math.random() - 0.5) * variation;
   
   return Math.round(Math.max(priceRange.min, Math.min(priceRange.max, price)));
 };
 
-// Helper function to estimate hotel price per night based on real market data
-// Uses actual 2024 hotel pricing patterns by destination and accommodation type
 const estimateHotelPrice = (destination, accommodation, budgetLevel) => {
-  // Extract city/country name
   const getLocationName = (loc) => {
     if (!loc) return 'unknown';
     return loc.split(',')[0].trim().toLowerCase();
@@ -93,26 +75,19 @@ const estimateHotelPrice = (destination, accommodation, budgetLevel) => {
   
   const location = getLocationName(destination);
   
-  // Real market-based price ranges by destination tier (2024 data)
-  // Prices are per night in USD
   const destinationTiers = {
-    // Budget destinations (Southeast Asia, Eastern Europe, Central America)
     budget: ['bali', 'thailand', 'vietnam', 'cambodia', 'philippines', 'indonesia', 'costa rica', 'guatemala', 'poland', 'czech', 'hungary'],
-    // Mid-range destinations (Western Europe, Japan, Australia, some US cities)
     mid: ['paris', 'london', 'tokyo', 'sydney', 'rome', 'barcelona', 'amsterdam', 'berlin', 'vienna', 'prague', 'japan'],
-    // Premium destinations (Switzerland, Monaco, Dubai, major US cities, luxury resorts)
     premium: ['switzerland', 'monaco', 'dubai', 'uae', 'new york', 'san francisco', 'los angeles', 'miami', 'santorini', 'maldives', 'seychelles'],
   };
   
-  // Determine destination tier
-  let tier = 'mid'; // default
+  let tier = 'mid';
   if (destinationTiers.budget.some(t => location.includes(t))) {
     tier = 'budget';
   } else if (destinationTiers.premium.some(t => location.includes(t))) {
     tier = 'premium';
   }
   
-  // Base prices by accommodation type and destination tier (real 2024 market data)
   const priceMatrix = {
     '3-star Hotel': {
       budget: { min: 25, max: 60, avg: 40 },
@@ -144,21 +119,17 @@ const estimateHotelPrice = (destination, accommodation, budgetLevel) => {
   const accommodationType = accommodation || '4-star Hotel';
   const priceRange = priceMatrix[accommodationType]?.[tier] || priceMatrix['4-star Hotel'][tier];
   
-  // Adjust based on budget preference (0-100 scale)
-  // Budget preference affects the price within the range
   const budgetMultiplier = (budgetLevel || 50) / 100;
   const adjustedMin = priceRange.min * (0.8 + budgetMultiplier * 0.2);
   const adjustedMax = priceRange.max * (0.8 + budgetMultiplier * 0.2);
   const adjustedAvg = priceRange.avg * (0.8 + budgetMultiplier * 0.2);
   
-  // Add realistic variation
   const variation = (adjustedMax - adjustedMin) * 0.15;
   const price = adjustedAvg + (Math.random() - 0.5) * variation;
   
   return Math.round(Math.max(adjustedMin, Math.min(adjustedMax, price)));
 };
 
-// POST /api/generate-trip
 app.post('/api/generate-trip', async (req, res) => {
   try {
     const {
@@ -172,7 +143,6 @@ app.post('/api/generate-trip', async (req, res) => {
       maxResults = 4
     } = req.body || {};
 
-    // Log user inputs
     console.log('\n========== USER INPUTS ==========');
     console.log('Budget:', budget);
     console.log('Travel Style:', travelStyle);
@@ -184,7 +154,6 @@ app.post('/api/generate-trip', async (req, res) => {
     console.log('Max Results:', maxResults);
     console.log('===================================\n');
 
-    // Basic input validation
     const prefs = { budget, travelStyle, planning, departureLocation, destination, startDate, endDate, maxResults };
     const cacheKey = JSON.stringify(prefs);
     const cached = tripCache.get(cacheKey);
@@ -198,9 +167,6 @@ app.post('/api/generate-trip', async (req, res) => {
       return res.json({ success: true, trips: cached.data, cached: true });
     }
 
-    // JSON schema for function-calling (ensures the model returns valid JSON)
-    // Extended to include an itemized costBreakdown and assumptions/sources so
-    // the model returns realistic, auditable estimates.
     const tripFunction = {
       name: "trip_recommendations",
       description: "Return an array of realistic trip recommendation objects that include an itemized cost breakdown and assumptions.",
@@ -218,7 +184,6 @@ app.post('/api/generate-trip', async (req, res) => {
                 startDate: { type: "string" },
                 endDate: { type: "string" },
                 durationDays: { type: "integer" },
-                // Total estimated budget for the trip (USD)
                 budgetUSD: { type: "number" },
                 currency: { type: "string" },
                 activities: { type: "array", items: { type: "string" } },
@@ -227,8 +192,7 @@ app.post('/api/generate-trip', async (req, res) => {
                 accommodations: { type: "string" },
                 imageUrl: { type: "string" },
                 description: { type: "string" },
-                matchScore: { type: "number" }, // 0-100
-                // New: itemized cost breakdown and per-person estimates
+                matchScore: { type: "number" },
                 costBreakdown: {
                   type: "object",
                   properties: {
@@ -244,10 +208,9 @@ app.post('/api/generate-trip', async (req, res) => {
                   },
                   required: ["totalUSD", "perPersonUSD"]
                 },
-                // New: detailed daily itinerary and recommended hotel info
                 itinerary: {
                   type: "array",
-                  items: { type: "string" }, // e.g. "Walk the Venice Beach Boardwalk"
+                  items: { type: "string" },
                   description: "Simple list of suggested things to do (no dates or day numbers)."
                 },
 
@@ -262,8 +225,6 @@ app.post('/api/generate-trip', async (req, res) => {
       }
     };
 
-    // System + user messages: provide explicit instructions to generate personalized recommendations
-    // based on ALL user inputs without hardcoded values
     const messages = [
       {
         role: "system",
@@ -360,9 +321,6 @@ Return ONLY the JSON object, no schema, no explanations, no markdown.`
 
     ];
 
-    // The Responses API expects a single `input` prompt. We'll convert the
-    // system/user messages into a single prompt and ask the model to return
-    // ONLY a JSON object with actual trip data, NOT the schema.
     const prompt = `System: ${messages[0].content}
 
 User: ${messages[1].content}
@@ -373,7 +331,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
 - Calculate matchScore based on how well each trip matches: budget level ${budget}, travel style ${travelStyle}, planning preference ${planning}
 - Return ONLY the JSON object with trips array, no other text, no schema, no explanations`;
 
-    // Add timeout to OpenAI API call (50 seconds to allow frontend 60s timeout)
     const completionPromise = client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -387,17 +344,15 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
         }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 2000, // Limit response size for faster generation
+      max_tokens: 2000,
     });
     
-    // Add timeout wrapper
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('OpenAI API timeout after 50 seconds')), 50000);
     });
     
     const completion = await Promise.race([completionPromise, timeoutPromise]);
 
-    // Helper: extract text from chat completion response
     const extractText = (resp) => {
       if (!resp) return '';
       if (resp.choices && resp.choices[0] && resp.choices[0].message) {
@@ -411,9 +366,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
     };
 
     const textOutput = extractText(completion);
-    // Debug: always log the AI textual output (trimmed) to help diagnose
-    // cases where the model echoes schema or returns unexpected results.
-    // console.log('AI textual output (trimmed):', textOutput);
     if (!textOutput) {
       return res.status(502).json({ error: 'No textual output from AI' });
     }
@@ -430,7 +382,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
       try {
         return JSON.parse(cleaned);
       } catch (e) {
-        // continue to more robust extraction
       }
 
       // 2) Find the key and attempt to extract the surrounding JSON object by
@@ -438,7 +389,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
       // objects (e.g., schema then result).
       const keyIndex = cleaned.indexOf(`"${key}"`);
       if (keyIndex !== -1) {
-        // find an opening brace before the key
         let openIndex = cleaned.lastIndexOf('{', keyIndex);
         if (openIndex === -1) openIndex = cleaned.indexOf('{');
         if (openIndex !== -1) {
@@ -447,7 +397,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
           for (let i = openIndex; i < cleaned.length; i++) {
             const ch = cleaned[i];
             if (ch === '"') {
-              // toggle inString unless escaped
               const prev = cleaned[i - 1];
               if (prev !== '\\') inString = !inString;
             }
@@ -469,13 +418,12 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
         }
       }
 
-      // 3) Fallback: attempt to parse starting at the last '{' in the string
+      // attempt to parse starting at the last '{' in the string
       const lastOpen = cleaned.lastIndexOf('{');
       if (lastOpen !== -1) {
         try {
           return JSON.parse(cleaned.slice(lastOpen));
         } catch (e) {
-          // give up
         }
       }
 
@@ -483,39 +431,32 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
     };
 
     const parsed = extractJsonContainingKey(textOutput, 'trips');
-    // Debug: log the parsed object (trimmed) to inspect structure
     if (parsed) console.log('Parsed AI JSON keys:', Object.keys(parsed));
     if (!parsed) {
       console.error('AI output parsing failed, raw output:\n', textOutput);
-      // Also log full completion for deeper debugging (trim to avoid huge logs)
       try {
         console.error('Full completion object (trimmed):', JSON.stringify(completion, null, 2).slice(0, 5000));
       } catch (e) {
-        // ignore stringify errors
       }
       return res.status(502).json({ error: 'Failed to parse AI response JSON', raw: textOutput });
     }
 
     // Basic server-side validation: ensure trips is an array. The model may
     // return the trips array at the top-level (`trips`) or nested under
-    // `parameters.trips` (or somewhere else). Search common locations.
+    // `parameters.trips` (or somewhere else).
     const findTripsInParsed = (obj) => {
       if (!obj || typeof obj !== 'object') return null;
       if (Array.isArray(obj.trips)) return obj.trips;
       if (obj.parameters && Array.isArray(obj.parameters.trips)) return obj.parameters.trips;
-      // recursive shallow search for a 'trips' key containing an array
       for (const k of Object.keys(obj)) {
         try {
           const v = obj[k];
           if (v && typeof v === 'object') {
             if (Array.isArray(v.trips)) return v.trips;
             if (Array.isArray(v)) {
-              // sometimes the parsed object itself might be an array under an unexpected key
-              // but we only accept arrays keyed as 'trips'
             }
           }
         } catch (e) {
-          // ignore
         }
       }
       return null;
@@ -540,7 +481,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
     if (trips.length > 0) {
       const originalCount = trips.length;
       trips = trips.filter(trip => {
-        // 1. Validate destination matches
         if (destination && destination.trim()) {
           const requestedDest = destination.toLowerCase().trim();
           const tripDest = (trip.destination || trip.title || '').toLowerCase();
@@ -551,24 +491,20 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
           }
         }
         
-        // 2. Validate realistic costs
         const totalCost = trip.costBreakdown?.totalUSD || trip.budgetUSD || 0;
         const flightCost = trip.costBreakdown?.flightUSD || 0;
         const duration = trip.durationDays || 1;
         
-        // Reject trips with unrealistic costs
         if (totalCost < 300) {
           console.warn(`Filtered out trip: unrealistic total cost $${totalCost} (too low, minimum $300)`);
           return false;
         }
         
-        // Reject trips with $0 flight costs when departure location is specified
         if (departureLocation && flightCost === 0 && totalCost < 1000) {
           console.warn(`Filtered out trip: $0 flight cost from ${departureLocation} to ${trip.destination} is unrealistic`);
           return false;
         }
         
-        // Validate cost breakdown consistency
         if (trip.costBreakdown) {
           const calculatedTotal = (trip.costBreakdown.flightUSD || 0) +
                                  (trip.costBreakdown.hotelTotalUSD || 0) +
@@ -577,7 +513,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
                                  (trip.costBreakdown.taxesFeesUSD || 0);
           const reportedTotal = trip.costBreakdown.totalUSD || 0;
           
-          // Allow small rounding differences (within $10)
           if (Math.abs(calculatedTotal - reportedTotal) > 10) {
             console.warn(`Trip cost breakdown inconsistency: calculated $${calculatedTotal} vs reported $${reportedTotal}`);
           }
@@ -597,11 +532,10 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
       console.log(`Found ${extractedTrips.length} trips in AI output, ${trips.length} passed validation.`);
     }
 
-    // Sort trips by matchScore (match percentage) descending - best matches first
     trips.sort((a, b) => {
       const scoreA = a.matchScore || 0;
       const scoreB = b.matchScore || 0;
-      return scoreB - scoreA; // Descending order
+      return scoreB - scoreA;
     });
     
     console.log('\n========== AI-GENERATED TRIPS (sorted by match score) ==========');
@@ -613,7 +547,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
     });
     console.log('===============================================================\n');
 
-    // Log detailed trip outputs
     console.log('\n========== DETAILED TRIP OUTPUTS ==========');
     console.log(`Generated ${trips.length} trip(s), ranked by match score:`);
     trips.forEach((trip, idx) => {
@@ -634,7 +567,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
     });
     console.log('==========================================\n');
 
-    // Cache and return AI-generated trips (already sorted by matchScore)
     tripCache.set(cacheKey, { createdAt: Date.now(), data: trips });
     res.json({ success: true, trips: trips, cached: false });
   } catch (err) {
@@ -643,7 +575,6 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
   }
 });
 
-// GET /api/get-image-url - Get Unsplash image URL for destination/activity
 app.get('/api/get-image-url', async (req, res) => {
   try {
     const { destination, activity } = req.query;
@@ -654,9 +585,7 @@ app.get('/api/get-image-url', async (req, res) => {
       return res.status(400).json({ error: 'Destination parameter is required' });
     }
 
-    // If Unsplash API key is not set, return a fallback URL
     if (!UNSPLASH_ACCESS_KEY) {
-      // Use Picsum Photos as fallback
       let hash = 0;
       const hashInput = `${destination}-${activity || ''}`;
       for (let i = 0; i < hashInput.length; i++) {
@@ -670,10 +599,8 @@ app.get('/api/get-image-url', async (req, res) => {
       });
     }
 
-    // Build search query: combine destination and activity
     let query = destination;
     if (activity) {
-      // Clean activity text
       const cleanActivity = activity
         .replace(/\b(visit|explore|see|go to|check out|walk|stroll|the|a|an)\b/gi, '')
         .trim();
@@ -682,7 +609,6 @@ app.get('/api/get-image-url', async (req, res) => {
       }
     }
 
-    // Fetch image from Unsplash API
     const unsplashUrl = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`;
     
     const response = await fetch(unsplashUrl, {
@@ -698,7 +624,6 @@ app.get('/api/get-image-url', async (req, res) => {
     const data = await response.json();
     
     if (data.results && data.results.length > 0) {
-      // Get the first result's regular URL (800px width)
       const imageUrl = data.results[0].urls?.regular || data.results[0].urls?.small;
       const finalUrl = imageUrl || data.results[0].urls?.thumb;
       console.log(`[Image API] Found Unsplash image for "${query}":`, finalUrl);
@@ -710,7 +635,6 @@ app.get('/api/get-image-url', async (req, res) => {
     
     console.log(`[Image API] No Unsplash results for "${query}", using fallback`);
 
-    // Fallback if no results
     let hash = 0;
     const hashInput = `${destination}-${activity || ''}`;
     for (let i = 0; i < hashInput.length; i++) {
@@ -725,7 +649,6 @@ app.get('/api/get-image-url', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching image from Unsplash:', error);
-    // Return fallback on error
     let hash = 0;
     const hashInput = `${req.query.destination || 'travel'}-${req.query.activity || ''}`;
     for (let i = 0; i < hashInput.length; i++) {
@@ -741,7 +664,6 @@ app.get('/api/get-image-url', async (req, res) => {
   }
 });
 
-// POST /api/get-flight-price - Get estimated flight price
 app.post('/api/get-flight-price', async (req, res) => {
   try {
     const { origin, destination, date } = req.body;
@@ -752,8 +674,6 @@ app.post('/api/get-flight-price', async (req, res) => {
 
     console.log(`[Flight Price] Request: ${origin} → ${destination} on ${date || 'any date'}`);
     
-    // TODO: Integrate with real flight API (Amadeus, Skyscanner, etc.)
-    // For now, use estimation based on real market data
     const estimatedPrice = await estimateFlightPrice(origin, destination, date);
     
     console.log(`[Flight Price] Estimated: $${estimatedPrice}`);
@@ -762,7 +682,7 @@ app.post('/api/get-flight-price', async (req, res) => {
       success: true,
       price: estimatedPrice,
       currency: 'USD',
-      source: 'estimated', // 'api' when real API is integrated
+      source: 'estimated',
       origin,
       destination,
       date: date || null,
@@ -784,11 +704,9 @@ app.post('/api/get-hotel-price', async (req, res) => {
 
     console.log(`[Hotel Price] Request: ${accommodation || 'hotel'} in ${destination}, ${checkin} to ${checkout}`);
     
-    // Calculate number of nights from dates (MM/DD/YYYY format)
-    let nights = 3; // default
+    let nights = 3;
     if (checkin && checkout && checkin.includes('/') && checkout.includes('/')) {
       try {
-        // Parse MM/DD/YYYY format
         const [checkinMonth, checkinDay, checkinYear] = checkin.split('/').map(Number);
         const [checkoutMonth, checkoutDay, checkoutYear] = checkout.split('/').map(Number);
         const checkinDate = new Date(checkinYear, checkinMonth - 1, checkinDay);
@@ -801,8 +719,6 @@ app.post('/api/get-hotel-price', async (req, res) => {
       }
     }
     
-    // TODO: Integrate with real hotel API (Booking.com, Hotels.com, etc.)
-    // For now, use estimation
     const pricePerNight = estimateHotelPrice(destination, accommodation || '4-star Hotel', budgetLevel || 50);
     const totalPrice = pricePerNight * nights;
     
@@ -814,7 +730,7 @@ app.post('/api/get-hotel-price', async (req, res) => {
       totalPrice,
       nights,
       currency: 'USD',
-      source: 'estimated', // 'api' when real API is integrated
+      source: 'estimated',
       destination,
       accommodation: accommodation || 'Hotel',
       checkin: checkin || null,
@@ -826,7 +742,6 @@ app.post('/api/get-hotel-price', async (req, res) => {
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`TripSync backend listening on http://localhost:${PORT}`);

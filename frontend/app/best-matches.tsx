@@ -38,13 +38,11 @@ interface TripRecommendation {
   };
 }
 
-// Mock trip data for fallback
-// Prices are realistic estimates including: flights, accommodation, food, activities, and local transport
 const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '1',
     destination: 'Santorini, Greece',
-    cost: 3200, // Flight: $1000, 5-star resort (6 nights): $2400, Food/activities: $600, Transport: $200
+    cost: 3200,
     duration: 12,
     accommodation: '5-star Resort',
     image: require('@/assets/images/react-logo.png'),
@@ -54,7 +52,7 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '2',
     destination: 'Bali, Indonesia',
-    cost: 2100, // Flight: $1100, 4-star hotel (8 nights): $800, Food/activities: $400, Transport: $100
+    cost: 2100,
     duration: 16,
     accommodation: '4-star Hotel',
     image: require('@/assets/images/react-logo.png'),
@@ -64,7 +62,7 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '3',
     destination: 'Tokyo, Japan',
-    cost: 3800, // Flight: $1200, 5-star hotel (7 nights): $2100, Food/activities: $1000, Transport: $300
+    cost: 3800,
     duration: 14,
     accommodation: '5-star Hotel',
     image: require('@/assets/images/react-logo.png'),
@@ -74,7 +72,7 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '4',
     destination: 'Bali, Indonesia',
-    cost: 2800, // Flight: $1100, 5-star resort (10 nights): $2000, Food/activities: $600, Transport: $100
+    cost: 2800,
     duration: 18,
     accommodation: '5-star Resort',
     image: require('@/assets/images/react-logo.png'),
@@ -84,7 +82,7 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   {
     id: '5',
     destination: 'Bali, Indonesia',
-    cost: 1650, // Flight: $1100, 3-star hotel (7 nights): $350, Food/activities: $300, Transport: $100
+    cost: 1650,
     duration: 14,
     accommodation: '3-star Hotel',
     image: require('@/assets/images/react-logo.png'),
@@ -93,7 +91,6 @@ const mockTrips: Omit<TripRecommendation, 'matchPercentage'>[] = [
   },
 ];
 
-// Simulate AI-based matching algorithm
 const calculateMatchPercentage = (
   trip: Omit<TripRecommendation, 'matchPercentage'>,
   budget: number,
@@ -103,21 +100,18 @@ const calculateMatchPercentage = (
   let score = 0;
   let maxScore = 0;
 
-  // Budget matching (0-100 scale, where 0 = budget, 100 = luxury)
   const budgetPreference = budget;
   const normalizedCost = (trip.cost / 3000) * 100;
   const budgetScore = 100 - Math.abs(budgetPreference - normalizedCost);
   score += budgetScore * 0.4;
   maxScore += 100 * 0.4;
 
-  // Travel Style matching (0-100 scale, where 0 = speed, 100 = comfort)
   const travelStylePreference = travelStyle;
   const normalizedDuration = (trip.duration / 20) * 100;
   const travelScore = 100 - Math.abs(travelStylePreference - normalizedDuration);
   score += travelScore * 0.35;
   maxScore += 100 * 0.35;
 
-  // Planning matching (0-100 scale, where 0 = flexible, 100 = certain)
   const planningPreference = planning;
   const planningScore = trip.isGroupMatch
     ? Math.min(100, planningPreference + 20)
@@ -129,37 +123,28 @@ const calculateMatchPercentage = (
   return Math.max(60, Math.min(99, matchPercentage));
 };
 
-// Helper function to extract key words from activity text
 function extractActivityKeywords(activity: string): string {
-  // Remove common verbs and articles
   let cleaned = activity
     .replace(/\b(visit|explore|see|go to|check out|walk|stroll|enjoy|experience|discover|tour|the|a|an)\b/gi, '')
     .trim();
   
-  // Extract key nouns/phrases (first 2-3 words usually contain the main subject)
   const words = cleaned.split(/\s+/).filter(w => w.length > 2);
   
-  // Take the most important words (usually the first few)
-  // This helps get more specific images (e.g., "Central Park" instead of "visit Central Park")
   if (words.length > 0) {
-    // Take up to 3 key words
     return words.slice(0, 3).join(' ');
   }
   
   return cleaned;
 }
 
-// Get API base URL (handles Android emulator vs iOS simulator)
 const getApiBaseUrl = () => {
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000'; // Android emulator special IP
+    return 'http://10.0.2.2:3000';
   }
-  return 'http://localhost:3000'; // iOS simulator and web
+  return 'http://localhost:3000';
 };
 
-// Helper function to fetch image URL from backend API
 async function getActivityImageUrl(activity: string, tripId: string, destination: string): Promise<string> {
-  // Always return a fallback URL (Picsum Photos) as minimum
   const hashInput = `${destination}-${activity || ''}-${tripId}`;
   let hash = 0;
   for (let i = 0; i < hashInput.length; i++) {
@@ -219,7 +204,6 @@ function RecommendationCard({ trip, onSelect, onImageUrlChange }: { trip: TripRe
       ? (expanded ? trip.itinerary! : trip.itinerary!.slice(0, 3))
       : [];
 
-    // Generate fallback URL helper - always returns a valid URL
     const generateFallbackUrl = (dest: string, act: string, id: string) => {
       const hashInput = `${dest}-${act || ''}-${id}`;
       let hash = 0;
@@ -231,16 +215,13 @@ function RecommendationCard({ trip, onSelect, onImageUrlChange }: { trip: TripRe
       return `https://picsum.photos/seed/${seed}/800/400`;
     };
     
-    // Get activity for image
     const activity = hasItinerary && trip.itinerary && trip.itinerary.length > 0 
       ? trip.itinerary[0] 
       : '';
     
-    // Always initialize with a valid fallback URL
     const initialUrl = generateFallbackUrl(trip.destination, activity, trip.id);
     const [imageUrl, setImageUrl] = useState<string>(initialUrl);
 
-    // Fetch better image from API if available (non-blocking)
     useEffect(() => {
       let isMounted = true;
       
@@ -249,18 +230,14 @@ function RecommendationCard({ trip, onSelect, onImageUrlChange }: { trip: TripRe
           const url = await getActivityImageUrl(activity, trip.id, trip.destination);
           if (isMounted && url && url.length > 0) {
             setImageUrl(url);
-            // Notify parent component of the image URL
             onImageUrlChange?.(url);
           }
         } catch (error) {
-          // Silently fail - we already have a fallback
         }
       };
       
-      // Also notify of initial fallback URL
       onImageUrlChange?.(initialUrl);
       
-      // Don't block on this - we already have a fallback
       fetchImage();
       
       return () => {
@@ -277,7 +254,6 @@ function RecommendationCard({ trip, onSelect, onImageUrlChange }: { trip: TripRe
             style={styles.tripImage} 
             resizeMode="cover"
             onError={() => {
-              // If image fails, try a different fallback
               const altUrl = generateFallbackUrl(trip.destination, `alt-${trip.id}`, trip.id);
               setImageUrl(altUrl);
             }}
@@ -288,7 +264,6 @@ function RecommendationCard({ trip, onSelect, onImageUrlChange }: { trip: TripRe
         </Pressable>
   
         <View style={styles.cardContent}>
-          {/* Tapping the title also opens detail */}
           <Pressable onPress={onSelect}>
             <Text style={styles.destinationName}>{trip.destination}</Text>
           </Pressable>
@@ -353,8 +328,6 @@ useEffect(() => {
       setIsLoading(true);
       const apiBaseUrl = getApiBaseUrl();
       
-      // Create a timeout promise that rejects after 60 seconds
-      // AI generation can take 15-60 seconds depending on complexity and API load
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout - AI generation took too long. Please try again.')), 60000);
       });
@@ -377,7 +350,6 @@ useEffect(() => {
       
       const resp = await Promise.race([fetchPromise, timeoutPromise]);
 
-      // Check if response is ok
       if (!resp.ok) {
         const errorText = await resp.text();
         console.error('Backend error response:', errorText);
@@ -390,7 +362,6 @@ useEffect(() => {
         throw new Error(json.error || json.message || 'Failed to generate trips');
       }
 
-      // Map the API trip format to your UI TripRecommendation
       const apiTrips = json.trips || [];
             const safeParse = (val: any) => {
                 if (!val) return null;
@@ -412,7 +383,6 @@ useEffect(() => {
 
         const destinationName = t.destination || t.title || 'Unknown';
 
-        // Parse costBreakdown - ensure all numeric fields are numbers
         let costBreakdown = undefined;
         if (t.costBreakdown) {
             if (typeof t.costBreakdown === 'object' && !Array.isArray(t.costBreakdown)) {
@@ -444,7 +414,6 @@ useEffect(() => {
             }
         }
 
-        // Calculate total cost from breakdown or use budgetUSD
         const totalCost = costBreakdown?.totalUSD || t.budgetUSD || 0;
 
         return {
@@ -453,17 +422,15 @@ useEffect(() => {
             cost: Math.round(totalCost),
             duration: ((t.durationDays || 1) * 24),
             accommodation: t.accommodations || 'Hotel',
-            image: { uri: '' }, // Will be set by component via API call
+            image: { uri: '' },
             description: t.description || '',
             isGroupMatch: !!t.isGroupMatch || false,
-            // matchScore is already 0–100 in your sample, so just round:
             matchPercentage: typeof t.matchScore === 'number' ? Math.round(t.matchScore) : 75,
             itinerary: itineraryArray as string[],
             costBreakdown: costBreakdown,
         };
         });
 
-      // Debug: Log cost breakdowns to verify they're being parsed correctly
       console.log('Mapped trips with cost breakdowns:', mapped.map(t => ({
         destination: t.destination,
         cost: t.cost,
@@ -476,10 +443,8 @@ useEffect(() => {
       console.error('Error fetching trips from API:', err);
       console.error('Error details:', err.message, err.stack);
       
-      // Fallback to mock data if API fails - do this quickly
       console.warn('Falling back to mock trip data');
       
-      // Filter mock trips by destination if destination is specified
       const requestedDest = destination && destination.trim() ? destination.toLowerCase().trim() : '';
       let filteredMockTrips = requestedDest
         ? mockTrips.filter(trip => {
@@ -488,12 +453,10 @@ useEffect(() => {
           })
         : mockTrips;
       
-      // If no matching mock trips found, use all mock trips
       if (filteredMockTrips.length === 0) {
         filteredMockTrips = mockTrips;
       }
       
-      // Calculate match percentages and sort
       const mockTripsWithMatches = filteredMockTrips.map((trip) => ({
         ...trip,
         matchPercentage: calculateMatchPercentage(trip, budget, travelStyle, planning),
@@ -509,12 +472,10 @@ useEffect(() => {
 }, [budget, travelStyle, planning, departureLocation, destination, startDate, endDate]);
 
     const handleSelectTrip = (trip: TripRecommendation) => {
-        // open detail overlay
         setSelectedTrip(trip);
     };
 
     const handleConfirmTrip = (trip: TripRecommendation, imageUrl?: string) => {
-        // Get image URL from map or use provided/fallback
         let imageUrlToSave = imageUrl || imageUrlMap.current.get(trip.id) || trip.imageUrl;
         if (!imageUrlToSave) {
             const activity = Array.isArray(trip.itinerary) && trip.itinerary.length > 0 ? trip.itinerary[0] : '';
@@ -528,7 +489,6 @@ useEffect(() => {
             imageUrlToSave = `https://picsum.photos/seed/${seed}/800/400`;
         }
         
-        // Ensure accommodation is a string, not an object
         const accommodationStr = typeof trip.accommodation === 'string' 
             ? trip.accommodation 
             : (trip.accommodation && typeof trip.accommodation === 'object' 
@@ -620,10 +580,7 @@ useEffect(() => {
     );
 }
 
-// Render detail overlay at bottom of file so styles are in scope
-// This wrapper component tracks the image URL from the RecommendationCard
 function TripDetailWithImage({ trip, imageUrl, onClose, onConfirm }: { trip: TripRecommendation; imageUrl?: string; onClose: () => void; onConfirm: (t: TripRecommendation, imageUrl?: string) => void }) {
-    // Use provided imageUrl or generate fallback
     const finalImageUrl = imageUrl || trip.imageUrl || (() => {
         const activity = Array.isArray(trip.itinerary) && trip.itinerary.length > 0 ? trip.itinerary[0] : '';
         const hashInput = `${trip.destination}-${activity || ''}-${trip.id}`;

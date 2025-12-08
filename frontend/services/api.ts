@@ -7,7 +7,6 @@ import { Platform } from 'react-native';
 //   Find your IP: macOS/Linux: `ifconfig` or `ip addr`, Windows: `ipconfig`
 const getDevApiUrl = () => {
   if (Platform.OS === 'android') {
-    // Android emulator uses 10.0.2.2 to access host machine's localhost
     return 'http://10.0.2.2:3000';
   }
   // iOS simulator and web can use localhost
@@ -16,7 +15,7 @@ const getDevApiUrl = () => {
 
 const API_BASE_URL = __DEV__
   ? getDevApiUrl()
-  : 'https://your-production-api-url.com'; // Production - update with your deployed backend URL
+  : 'https://your-production-api-url.com';
 
 export interface ChatResponse {
   success: boolean;

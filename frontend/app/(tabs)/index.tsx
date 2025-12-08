@@ -23,12 +23,10 @@ type TripCardProps = {
 };
 
 function TripCard({ trip, onPress }: TripCardProps) {
-  // Use stored image URL or generate fallback
   const getImageUrl = () => {
     if (trip.imageUrl) {
       return trip.imageUrl;
     }
-    // Fallback: generate from destination
     const hashInput = trip.destination;
     let hash = 0;
     for (let i = 0; i < hashInput.length; i++) {
