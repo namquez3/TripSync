@@ -256,11 +256,16 @@ export default function TripDetailScreen() {
         };
         
         const formattedStartDate = formatDateForUrl(trip.startDate);
+        const formattedEndDate = formatDateForUrl(trip.endDate);
         // Use the actual destination entered by the user in Create New Trip
         const dest = trip.destination.trim();
         
-        // Google Flights search URL using the user's destination
-        if (formattedStartDate) {
+        // Google Flights search URL with round trip dates
+        if (formattedStartDate && formattedEndDate) {
+            // Round trip with both dates
+            return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20${formattedStartDate}%20returning%20${formattedEndDate}`;
+        } else if (formattedStartDate) {
+            // One-way with date
             return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
         }
         return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
@@ -276,15 +281,14 @@ export default function TripDetailScreen() {
         
         const checkin = formatDateForUrl(trip.startDate);
         const checkout = formatDateForUrl(trip.endDate);
-        
-        // Search for the specific hotel name with destination
-        const hotelName = hotelInfo.name;
         const dest = trip.destination.trim();
-        const hotelSearchQuery = `${hotelName}, ${dest}`;
         
-        // Booking.com search URL using the hotel name and destination
+        // Search for hotels in the destination
+        const hotelSearchQuery = dest;
+        
+        // Booking.com search URL using the destination and dates
         const params = new URLSearchParams({
-            ss: hotelSearchQuery, // Search for the specific hotel name
+            ss: hotelSearchQuery, // Search for hotels in destination
         });
         if (checkin) params.append('checkin', checkin);
         if (checkout) params.append('checkout', checkout);
@@ -417,11 +421,11 @@ export default function TripDetailScreen() {
                         <View style={styles.sectionContent}>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Hotel:</Text>
-                                <Text style={styles.infoValue}>{hotelInfo.name}</Text>
+                                <Text style={styles.infoValue}>{typeof hotelInfo.name === 'string' ? hotelInfo.name : String(hotelInfo.name || 'Hotel')}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Type:</Text>
-                                <Text style={styles.infoValue}>{trip.accommodation}</Text>
+                                <Text style={styles.infoValue}>{typeof trip.accommodation === 'string' ? trip.accommodation : String(trip.accommodation || 'Hotel')}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Address:</Text>

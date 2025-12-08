@@ -1,17 +1,16 @@
+import { saveTrip } from '@/services/tripStorage';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
-    View,
-    Image,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveTrip } from '@/services/tripStorage';
 
 // Helper function to format date (MM/DD/YYYY) to readable format
 const formatFlightDate = (dateStr: string): string => {
@@ -28,36 +27,51 @@ const formatFlightDate = (dateStr: string): string => {
 
 // Mock flight and hotel data based on trip selection
 const getFlightInfo = (destination: string, duration: number, startDate?: string, endDate?: string) => {
-    const flights: Record<string, { airline: string; flightNumber: string; departureTime: string; arrivalTime: string }> = {
+    const flights: Record<string, { airline: string; flightNumber: string; departureTime: string; arrivalTime: string; returnFlightNumber: string; returnDepartureTime: string; returnArrivalTime: string }> = {
         'Santorini, Greece': {
             airline: 'Delta Airlines',
             flightNumber: 'DL 245',
             departureTime: '8:00 AM',
             arrivalTime: '4:00 PM',
+            returnFlightNumber: 'DL 246',
+            returnDepartureTime: '2:00 PM',
+            returnArrivalTime: '6:00 PM',
         },
         'Bali, Indonesia': {
             airline: 'Singapore Airlines',
             flightNumber: 'SQ 892',
             departureTime: '10:30 AM',
             arrivalTime: '2:30 AM+1',
+            returnFlightNumber: 'SQ 893',
+            returnDepartureTime: '11:00 PM',
+            returnArrivalTime: '7:00 AM+1',
         },
         'Tokyo, Japan': {
             airline: 'Japan Airlines',
             flightNumber: 'JL 61',
             departureTime: '11:00 AM',
             arrivalTime: '3:00 PM',
+            returnFlightNumber: 'JL 62',
+            returnDepartureTime: '4:00 PM',
+            returnArrivalTime: '12:00 PM',
         },
         'Paris, France': {
             airline: 'Air France',
             flightNumber: 'AF 83',
             departureTime: '9:15 AM',
             arrivalTime: '11:30 PM',
+            returnFlightNumber: 'AF 84',
+            returnDepartureTime: '1:00 PM',
+            returnArrivalTime: '4:30 PM',
         },
         'Dubai, UAE': {
             airline: 'Emirates',
             flightNumber: 'EK 201',
             departureTime: '10:00 AM',
             arrivalTime: '8:00 AM+1',
+            returnFlightNumber: 'EK 202',
+            returnDepartureTime: '2:00 AM',
+            returnArrivalTime: '8:00 AM',
         },
     };
     
@@ -66,17 +80,26 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
         flightNumber: 'IA 123',
         departureTime: '9:00 AM',
         arrivalTime: '5:00 PM',
+        returnFlightNumber: 'IA 124',
+        returnDepartureTime: '3:00 PM',
+        returnArrivalTime: '7:00 PM',
     };
     
-    // Format departure and arrival with dates
+    // Format departure date (outbound flight - when leaving origin)
     const departureDate = startDate ? formatFlightDate(startDate) : '';
-    const arrivalDate = endDate ? formatFlightDate(endDate) : '';
+    // Arrival at destination is typically same day or next day (calculate from departure)
+    const arrivalDate = startDate ? formatFlightDate(startDate) : '';
+    // Return flight date (when flying back - endDate)
+    const returnDate = endDate ? formatFlightDate(endDate) : '';
     
     return {
         airline: flightData.airline,
         flightNumber: flightData.flightNumber,
         departure: startDate ? `${flightData.departureTime}, ${departureDate}` : flightData.departureTime,
-        arrival: endDate ? `${flightData.arrivalTime}, ${arrivalDate}` : flightData.arrivalTime,
+        arrival: startDate ? `${flightData.arrivalTime}, ${arrivalDate}` : flightData.arrivalTime,
+        returnFlightNumber: flightData.returnFlightNumber,
+        returnDeparture: endDate ? `${flightData.returnDepartureTime}, ${returnDate}` : flightData.returnDepartureTime,
+        returnArrival: endDate ? `${flightData.returnArrivalTime}, ${returnDate}` : flightData.returnArrivalTime,
     };
 };
 
@@ -172,16 +195,24 @@ export default function TripConfirmedScreen() {
         };
         
         const formattedStartDate = formatDateForUrl(startDate);
+        const formattedEndDate = formatDateForUrl(endDate);
         const origin = departureLocation || '';
         // Use the actual destination entered by the user in Create New Trip
         const dest = destination.trim();
         
-        // Google Flights search URL using the user's destination and departure location
-        if (origin && formattedStartDate) {
+        // Google Flights search URL with round trip dates
+        if (origin && formattedStartDate && formattedEndDate) {
+            // Round trip with both dates
+            return `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(origin)}%20to%20${encodeURIComponent(dest)}%20${formattedStartDate}%20returning%20${formattedEndDate}`;
+        } else if (origin && formattedStartDate) {
+            // One-way with origin and date
             return `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(origin)}%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
-        }
-        if (formattedStartDate) {
+        } else if (formattedStartDate) {
+            // One-way to destination with date
             return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}%20on%20${formattedStartDate}`;
+        } else if (origin) {
+            // Just origin and destination
+            return `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(origin)}%20to%20${encodeURIComponent(dest)}`;
         }
         return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(dest)}`;
     };
@@ -196,15 +227,14 @@ export default function TripConfirmedScreen() {
         
         const checkin = formatDateForUrl(startDate);
         const checkout = formatDateForUrl(endDate);
-        
-        // Search for the specific hotel name with destination
-        const hotelName = hotelInfo.name;
         const dest = destination.trim();
-        const hotelSearchQuery = `${hotelName}, ${dest}`;
         
-        // Booking.com search URL using the hotel name and destination
+        // Search for hotels in the destination
+        const hotelSearchQuery = dest;
+        
+        // Booking.com search URL using the destination and dates
         const params = new URLSearchParams({
-            ss: hotelSearchQuery, // Search for the specific hotel name
+            ss: hotelSearchQuery, // Search for hotels in destination
         });
         if (checkin) params.append('checkin', checkin);
         if (checkout) params.append('checkout', checkout);
@@ -293,6 +323,8 @@ export default function TripConfirmedScreen() {
                             <Text style={styles.sectionTitle}>Flight</Text>
                         </View>
                         <View style={styles.sectionContent}>
+                            {/* Outbound Flight */}
+                            <Text style={styles.flightSubsectionTitle}>Outbound</Text>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Airline:</Text>
                                 <Text style={styles.infoValue}>{flightInfo.airline}</Text>
@@ -309,10 +341,26 @@ export default function TripConfirmedScreen() {
                                 <Text style={styles.infoLabel}>Arrival:</Text>
                                 <Text style={styles.infoValue}>{flightInfo.arrival}</Text>
                             </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Duration:</Text>
-                                <Text style={styles.infoValue}>{duration}h</Text>
-                            </View>
+                            
+                            {/* Return Flight */}
+                            {endDate && (
+                                <>
+                                    <View style={styles.divider} />
+                                    <Text style={styles.flightSubsectionTitle}>Return</Text>
+                                    <View style={styles.infoRow}>
+                                        <Text style={styles.infoLabel}>Flight:</Text>
+                                        <Text style={styles.infoValue}>{flightInfo.returnFlightNumber}</Text>
+                                    </View>
+                                    <View style={styles.infoRow}>
+                                        <Text style={styles.infoLabel}>Departure:</Text>
+                                        <Text style={styles.infoValue}>{flightInfo.returnDeparture}</Text>
+                                    </View>
+                                    <View style={styles.infoRow}>
+                                        <Text style={styles.infoLabel}>Arrival:</Text>
+                                        <Text style={styles.infoValue}>{flightInfo.returnArrival}</Text>
+                                    </View>
+                                </>
+                            )}
                         </View>
                         <Pressable style={styles.bookButton} onPress={handleBookFlight}>
                             <MaterialIcons name="open-in-new" size={18} color="#1C4E80" />
@@ -332,11 +380,11 @@ export default function TripConfirmedScreen() {
                         <View style={styles.sectionContent}>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Hotel:</Text>
-                                <Text style={styles.infoValue}>{hotelInfo.name}</Text>
+                                <Text style={styles.infoValue}>{typeof hotelInfo.name === 'string' ? hotelInfo.name : String(hotelInfo.name || 'Hotel')}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Type:</Text>
-                                <Text style={styles.infoValue}>{accommodation}</Text>
+                                <Text style={styles.infoValue}>{typeof accommodation === 'string' ? accommodation : String(accommodation || 'Hotel')}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Address:</Text>
@@ -504,6 +552,13 @@ const styles = StyleSheet.create({
     },
     sectionContent: {
         gap: 10,
+    },
+    flightSubsectionTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1C4E80',
+        marginTop: 8,
+        marginBottom: 4,
     },
     infoRow: {
         flexDirection: 'row',

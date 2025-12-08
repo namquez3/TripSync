@@ -528,17 +528,24 @@ useEffect(() => {
             imageUrlToSave = `https://picsum.photos/seed/${seed}/800/400`;
         }
         
+        // Ensure accommodation is a string, not an object
+        const accommodationStr = typeof trip.accommodation === 'string' 
+            ? trip.accommodation 
+            : (trip.accommodation && typeof trip.accommodation === 'object' 
+                ? String(trip.accommodation) 
+                : String(trip.accommodation || 'Hotel'));
+        
         router.push({
             pathname: '/trip-confirmed',
             params: {
                 destination: trip.destination,
-                departureLocation: departureLocation,
-                startDate: startDate,
-                endDate: endDate,
+                departureLocation: departureLocation || '',
+                startDate: startDate || '',
+                endDate: endDate || '',
                 cost: (trip.cost || 0).toString(),
                 duration: (trip.duration || 0).toString(),
-                accommodation: trip.accommodation,
-                description: trip.description,
+                accommodation: accommodationStr,
+                description: trip.description || '',
                 matchPercentage: trip.matchPercentage.toString(),
                 imageUrl: imageUrlToSave,
                 itinerary: trip.itinerary ? JSON.stringify(trip.itinerary) : '',
@@ -643,37 +650,40 @@ function TripDetailWithImage({ trip, imageUrl, onClose, onConfirm }: { trip: Tri
 
                 <View style={styles.costBox}>
                     <Text style={styles.costBoxTitle}>Price estimate</Text>
-                    {trip.costBreakdown ? (
-                        <>
-                            <View style={styles.costRow}>
-                                <Text>Flight</Text>
-                                <Text>${((trip.costBreakdown.flightUSD || 0) > 0 ? trip.costBreakdown.flightUSD : trip.cost * 0.3).toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.costRow}>
-                                <Text>Hotel ({trip.costBreakdown.hotelNights || Math.ceil(trip.duration / 24) || 1} nights)</Text>
-                                <Text>${((trip.costBreakdown.hotelTotalUSD || 0) > 0 ? trip.costBreakdown.hotelTotalUSD : trip.cost * 0.4).toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.costRow}>
-                                <Text>Transport</Text>
-                                <Text>${((trip.costBreakdown.transportUSD || 0) > 0 ? trip.costBreakdown.transportUSD : trip.cost * 0.1).toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.costRow}>
-                                <Text>Activities</Text>
-                                <Text>${((trip.costBreakdown.activitiesUSD || 0) > 0 ? trip.costBreakdown.activitiesUSD : trip.cost * 0.15).toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.costRow}>
-                                <Text>Taxes & Fees</Text>
-                                <Text>${((trip.costBreakdown.taxesFeesUSD || 0) > 0 ? trip.costBreakdown.taxesFeesUSD : trip.cost * 0.05).toLocaleString()}</Text>
-                            </View>
-                            <View style={[styles.costRow, styles.costTotal]}>
-                                <Text style={styles.costTotalText}>Total</Text>
-                                <Text style={styles.costTotalText}>${((trip.costBreakdown.totalUSD || 0) > 0 ? trip.costBreakdown.totalUSD : trip.cost).toLocaleString()}</Text>
-                            </View>
-                            <Text style={styles.perPerson}>
-                                Per person: ${((trip.costBreakdown.perPersonUSD || 0) > 0 ? trip.costBreakdown.perPersonUSD : trip.cost).toLocaleString()}
-                            </Text>
-                        </>
-                    ) : (
+                    {trip.costBreakdown ? (() => {
+                        const cb = trip.costBreakdown;
+                        return (
+                            <>
+                                <View style={styles.costRow}>
+                                    <Text>Flight</Text>
+                                    <Text>${((cb?.flightUSD || 0) > 0 ? (cb.flightUSD || 0) : trip.cost * 0.3).toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.costRow}>
+                                    <Text>Hotel ({cb?.hotelNights || Math.ceil(trip.duration / 24) || 1} nights)</Text>
+                                    <Text>${((cb?.hotelTotalUSD || 0) > 0 ? (cb.hotelTotalUSD || 0) : trip.cost * 0.4).toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.costRow}>
+                                    <Text>Transport</Text>
+                                    <Text>${((cb?.transportUSD || 0) > 0 ? (cb.transportUSD || 0) : trip.cost * 0.1).toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.costRow}>
+                                    <Text>Activities</Text>
+                                    <Text>${((cb?.activitiesUSD || 0) > 0 ? (cb.activitiesUSD || 0) : trip.cost * 0.15).toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.costRow}>
+                                    <Text>Taxes & Fees</Text>
+                                    <Text>${((cb?.taxesFeesUSD || 0) > 0 ? (cb.taxesFeesUSD || 0) : trip.cost * 0.05).toLocaleString()}</Text>
+                                </View>
+                                <View style={[styles.costRow, styles.costTotal]}>
+                                    <Text style={styles.costTotalText}>Total</Text>
+                                    <Text style={styles.costTotalText}>${((cb?.totalUSD || 0) > 0 ? (cb.totalUSD || 0) : trip.cost).toLocaleString()}</Text>
+                                </View>
+                                <Text style={styles.perPerson}>
+                                    Per person: ${((cb?.perPersonUSD || 0) > 0 ? (cb.perPersonUSD || 0) : trip.cost).toLocaleString()}
+                                </Text>
+                            </>
+                        );
+                    })() : (
                         <>
                             <View style={styles.costRow}>
                                 <Text>Flight</Text>
