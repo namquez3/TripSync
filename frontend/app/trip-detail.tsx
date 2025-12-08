@@ -69,9 +69,37 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
         },
     };
     
+    // Determine airline based on destination region
+    const getDefaultAirline = (dest: string): string => {
+        const destLower = dest.toLowerCase();
+        if (destLower.includes('miami') || destLower.includes('florida') || destLower.includes('united states') || destLower.includes('usa')) {
+            return 'American Airlines';
+        } else if (destLower.includes('europe') || destLower.includes('london') || destLower.includes('paris') || destLower.includes('rome') || destLower.includes('barcelona')) {
+            return 'Lufthansa';
+        } else if (destLower.includes('asia') || destLower.includes('tokyo') || destLower.includes('japan') || destLower.includes('singapore')) {
+            return 'United Airlines';
+        } else if (destLower.includes('australia') || destLower.includes('sydney') || destLower.includes('melbourne')) {
+            return 'Qantas';
+        } else if (destLower.includes('canada') || destLower.includes('toronto') || destLower.includes('vancouver')) {
+            return 'Air Canada';
+        } else if (destLower.includes('mexico') || destLower.includes('cancun') || destLower.includes('mexico city')) {
+            return 'Aeromexico';
+        } else if (destLower.includes('brazil') || destLower.includes('south america')) {
+            return 'LATAM Airlines';
+        }
+        return 'American Airlines'; // Default for US destinations
+    };
+    
+    const defaultAirline = getDefaultAirline(destination);
     const flightData = flights[destination] || {
-        airline: 'International Airlines',
-        flightNumber: 'IA 123',
+        airline: defaultAirline,
+        flightNumber: defaultAirline === 'American Airlines' ? 'AA 1234' : 
+                     defaultAirline === 'Lufthansa' ? 'LH 456' :
+                     defaultAirline === 'United Airlines' ? 'UA 789' :
+                     defaultAirline === 'Qantas' ? 'QF 12' :
+                     defaultAirline === 'Air Canada' ? 'AC 123' :
+                     defaultAirline === 'Aeromexico' ? 'AM 456' :
+                     defaultAirline === 'LATAM Airlines' ? 'LA 789' : 'AA 1234',
         departureTime: '9:00 AM',
         arrivalTime: '5:00 PM',
     };
@@ -88,7 +116,14 @@ const getFlightInfo = (destination: string, duration: number, startDate?: string
     };
 };
 
-const getHotelInfo = (destination: string, accommodation: string) => {
+const getHotelInfo = (destination: string, accommodation: string | object) => {
+    // Ensure accommodation is always a string
+    const accommodationStr = typeof accommodation === 'string' 
+        ? accommodation 
+        : (accommodation && typeof accommodation === 'object' 
+            ? (accommodation as any)?.name || (accommodation as any)?.type || String(accommodation) 
+            : String(accommodation || 'Hotel'));
+    
     const hotels: Record<string, { name: string; address: string; rating: string }> = {
         'Santorini, Greece': {
             name: 'Santorini Luxury Resort',
@@ -120,10 +155,22 @@ const getHotelInfo = (destination: string, accommodation: string) => {
             address: 'Las Vegas Strip, NV',
             rating: '4.5',
         },
+        'Miami, Florida': {
+            name: 'Miami Beach Resort',
+            address: 'South Beach, Miami, FL 33139',
+            rating: '4.6',
+        },
     };
-    return hotels[destination] || {
-        name: `${accommodation} - ${destination}`,
-        address: `${destination}`,
+    
+    const hotelData = hotels[destination];
+    if (hotelData) {
+        return hotelData;
+    }
+    
+    // Fallback: use accommodation string to create hotel name
+    return {
+        name: accommodationStr && accommodationStr !== 'Hotel' ? `${accommodationStr} - ${destination}` : `${destination} Hotel`,
+        address: destination,
         rating: '4.5',
     };
 };
@@ -179,7 +226,13 @@ export default function TripDetailScreen() {
 
     // Get flight and hotel information
     const flightInfo = getFlightInfo(trip.destination, trip.duration, trip.startDate, trip.endDate);
-    const hotelInfo = getHotelInfo(trip.destination, trip.accommodation);
+    // Ensure accommodation is a string before passing to getHotelInfo
+    const accommodationStr = typeof trip.accommodation === 'string' 
+        ? trip.accommodation 
+        : (trip.accommodation && typeof trip.accommodation === 'object' 
+            ? String(trip.accommodation) 
+            : String(trip.accommodation || 'Hotel'));
+    const hotelInfo = getHotelInfo(trip.destination, accommodationStr);
 
     // Use stored image URL or generate fallback
     const getImageUrl = () => {
@@ -422,10 +475,6 @@ export default function TripDetailScreen() {
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Hotel:</Text>
                                 <Text style={styles.infoValue}>{typeof hotelInfo.name === 'string' ? hotelInfo.name : String(hotelInfo.name || 'Hotel')}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Type:</Text>
-                                <Text style={styles.infoValue}>{typeof trip.accommodation === 'string' ? trip.accommodation : String(trip.accommodation || 'Hotel')}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Address:</Text>

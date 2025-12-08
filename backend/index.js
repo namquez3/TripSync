@@ -373,7 +373,8 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
 - Calculate matchScore based on how well each trip matches: budget level ${budget}, travel style ${travelStyle}, planning preference ${planning}
 - Return ONLY the JSON object with trips array, no other text, no schema, no explanations`;
 
-    const completion = await client.chat.completions.create({
+    // Add timeout to OpenAI API call (50 seconds to allow frontend 60s timeout)
+    const completionPromise = client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -386,7 +387,15 @@ CRITICAL: Return ONLY a JSON object with actual trip recommendations that match 
         }
       ],
       response_format: { type: "json_object" },
+      max_tokens: 2000, // Limit response size for faster generation
     });
+    
+    // Add timeout wrapper
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('OpenAI API timeout after 50 seconds')), 50000);
+    });
+    
+    const completion = await Promise.race([completionPromise, timeoutPromise]);
 
     // Helper: extract text from chat completion response
     const extractText = (resp) => {

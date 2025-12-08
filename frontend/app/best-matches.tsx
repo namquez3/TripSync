@@ -353,10 +353,10 @@ useEffect(() => {
       setIsLoading(true);
       const apiBaseUrl = getApiBaseUrl();
       
-      // Create a timeout promise that rejects after 30 seconds
-      // AI generation can take 10-30 seconds depending on complexity
+      // Create a timeout promise that rejects after 60 seconds
+      // AI generation can take 15-60 seconds depending on complexity and API load
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - AI generation took too long. Please try again.')), 30000);
+        setTimeout(() => reject(new Error('Request timeout - AI generation took too long. Please try again.')), 60000);
       });
       
       // Race between the fetch and timeout
