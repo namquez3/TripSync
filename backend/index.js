@@ -149,10 +149,11 @@ const estimateHotelPrice = (destination, accommodation, budgetLevel) => {
   const budgetMultiplier = (budgetLevel || 50) / 100;
   const adjustedMin = priceRange.min * (0.8 + budgetMultiplier * 0.2);
   const adjustedMax = priceRange.max * (0.8 + budgetMultiplier * 0.2);
+  const adjustedAvg = priceRange.avg * (0.8 + budgetMultiplier * 0.2);
   
   // Add realistic variation
   const variation = (adjustedMax - adjustedMin) * 0.15;
-  const price = priceRange.avg + (Math.random() - 0.5) * variation;
+  const price = adjustedAvg + (Math.random() - 0.5) * variation;
   
   return Math.round(Math.max(adjustedMin, Math.min(adjustedMax, price)));
 };
@@ -261,68 +262,98 @@ app.post('/api/generate-trip', async (req, res) => {
       }
     };
 
-    // System + user messages: provide explicit instructions to compute
-    // realistic, auditable cost estimates and use dates when present.
+    // System + user messages: provide explicit instructions to generate personalized recommendations
+    // based on ALL user inputs without hardcoded values
     const messages = [
       {
         role: "system",
-        content: `You are a travel data assistant. Produce concise, realistic trip recommendations for destinations worldwide (any country or region).
-      CRITICAL: If a specific destination is provided, ALL trips MUST be in that exact destination. Do NOT suggest trips to other locations.
-      For each trip:
-      - Return an itemized cost breakdown (flight, hotel per night, hotel nights, transport, activities, taxes/fees).
-      - Compute totalUSD and perPersonUSD and make sure they equal the sum of the components.
-      - Provide a simple itinerary as a list of things to do (no day-by-day breakdown, no dates).
-      - ALWAYS assume 1 traveler (single person trip). All costs should be calculated for one person only.
-      - For international destinations, use appropriate local currency codes in the 'currency' field (e.g., EUR, GBP, JPY, CAD, AUD, etc.) but still provide costs in USD for consistency.
-      - Consider international flight costs, visa requirements, and local pricing when calculating costs.
-      Use plausible marketplace averages based on real-world travel data. The response MUST be a single JSON object that strictly matches the provided schema and must not include any extra text, commentary, or markdown.`
+        content: `You are an intelligent travel recommendation assistant. Generate personalized trip recommendations that match user preferences exactly.
+      
+      CRITICAL REQUIREMENTS:
+      - If a specific destination is provided, ALL trips MUST be in that exact destination. Do NOT suggest trips to other locations.
+      - Generate realistic costs based on actual market data for the specific route, dates, and destination - do NOT use generic ranges.
+      - Calculate matchScore (0-100) based on how well each trip matches ALL user preferences:
+        * Budget preference (0=budget, 100=luxury): Higher scores for trips that match the user's budget level
+        * Travel style (0=speed, 100=comfort): Higher scores for trips matching duration/pace preferences
+        * Planning flexibility (0=flexible, 100=certain): Higher scores for trips with clear itineraries and fixed plans
+      - Rank trips by matchScore (highest first) - the best matching trips should have the highest scores.
+      - For each trip:
+        * Return an itemized cost breakdown (flight, hotel per night, hotel nights, transport, activities, taxes/fees).
+        * Compute totalUSD and perPersonUSD and make sure they equal the sum of the components.
+        * Provide a simple itinerary as a list of things to do (no day-by-day breakdown, no dates).
+        * ALWAYS assume 1 traveler (single person trip). All costs should be calculated for one person only.
+        * For international destinations, use appropriate local currency codes in the 'currency' field (e.g., EUR, GBP, JPY, CAD, AUD, etc.) but still provide costs in USD for consistency.
+        * Consider international flight costs, visa requirements, and local pricing when calculating costs.
+        * Use actual market prices for the specific route, dates, and destination - research realistic pricing.
+      The response MUST be a single JSON object that strictly matches the provided schema and must not include any extra text, commentary, or markdown.`
       },
 
       {
         role: "user",
-        content: `You are creating ${maxResults} realistic trip recommendations. Return ONLY a JSON object with a "trips" array containing actual trip data. DO NOT return the schema definition.
+        content: `Generate ${maxResults} personalized trip recommendations that match the user's preferences. Return ONLY a JSON object with a "trips" array containing actual trip data. DO NOT return the schema definition.
 
-User Preferences:
-- Budget level (0-100, where 0=budget, 100=luxury): ${budget}
-- Travel style (0-100, where 0=speed, 100=comfort): ${travelStyle}
-- Planning flexibility (0-100, where 0=flexible, 100=certain): ${planning}
-- Departure location: ${departureLocation || 'unspecified'}
-- Destination: ${destination || 'anywhere in the world'}
-- Start date: ${startDate || 'unspecified'}
-- End date: ${endDate || 'unspecified'}
+USER PREFERENCES (use these to generate personalized recommendations):
+- Budget level: ${budget} (0=budget traveler seeking low costs, 100=luxury traveler willing to spend)
+- Travel style: ${travelStyle} (0=fast-paced quick trips, 100=slow-paced comfortable experiences)
+- Planning flexibility: ${planning} (0=flexible/open to changes, 100=wants fixed plans and certainty)
+- Departure location: ${departureLocation || 'not specified - estimate from major hub'}
+- Destination: ${destination || 'anywhere in the world - suggest diverse options'}
+- Start date: ${startDate || 'not specified - use typical travel dates'}
+- End date: ${endDate || 'not specified - calculate from start date or use typical durations'}
 
-CRITICAL REQUIREMENTS:
+GENERATION INSTRUCTIONS:
 
-1. DESTINATION: If destination is "${destination}", ALL trips must be in "${destination}". Do NOT suggest other cities.
+1. DESTINATION MATCHING:
+   ${destination ? `ALL trips MUST be in "${destination}". Generate different experiences within this destination (different neighborhoods, activities, accommodation types).` : 'Generate diverse destination options worldwide that match user preferences.'}
 
-2. FLIGHT COSTS (MANDATORY - NEVER $0):
-${departureLocation ? `   - From ${departureLocation} to ${destination || 'destination'}: Calculate realistic round-trip airfare
-   - Domestic US (e.g., Texas to New York): $300-700
-   - Short domestic (under 500 miles): $200-500
-   - Long domestic (2000+ miles): $400-800
-   - International: $600-2000+ depending on distance
-   - Example: Texas to New York = ~$400-600 round trip` : '   - Estimate based on route distance (see examples above)'}
+2. COST CALCULATION (use actual market research, not generic ranges):
+   - Calculate realistic flight costs from ${departureLocation || 'departure location'} to ${destination || 'destination'} for ${startDate ? `dates around ${startDate}` : 'typical travel dates'}
+   - Research actual hotel prices in ${destination || 'the destination'} that match budget level ${budget}
+   - Calculate transport costs based on ${destination || 'destination'} local pricing
+   - Calculate activity costs based on ${destination || 'destination'} attractions and user's budget level ${budget}
+   - Consider seasonal pricing, local currency, and actual market rates
+   - Calculate hotelNights from dates: ${startDate && endDate ? `From ${startDate} to ${endDate}` : 'Use appropriate duration based on travel style'}
+   - Ensure all costs are realistic for the specific destination and dates
 
-3. HOTEL COSTS (per night):
-   - Budget (0-30): $60-100/night
-   - Mid-range (30-70): $120-200/night  
-   - Luxury (70-100): $250-500+/night
-   - Calculate hotelNights from dates: ${startDate && endDate ? `From ${startDate} to ${endDate}` : 'Use 3-5 nights if dates not provided'}
+3. MATCH SCORE CALCULATION (0-100, higher = better match):
+   For each trip, calculate matchScore based on:
+   - Budget match: How well the trip's total cost aligns with budget preference ${budget} (0=budget, 100=luxury)
+     * Budget 0-30: Should prefer trips $500-1500 total
+     * Budget 30-70: Should prefer trips $1000-3000 total  
+     * Budget 70-100: Should prefer trips $2000-5000+ total
+   - Travel style match: How well trip duration/pace matches travel style ${travelStyle} (0=speed, 100=comfort)
+     * Style 0-30: Prefer shorter trips (2-4 days), fast-paced
+     * Style 30-70: Prefer medium trips (4-7 days), balanced pace
+     * Style 70-100: Prefer longer trips (7-14+ days), relaxed pace
+   - Planning match: How well trip structure matches planning preference ${planning} (0=flexible, 100=certain)
+     * Planning 0-30: Prefer flexible, open-ended trips
+     * Planning 30-70: Prefer semi-structured trips
+     * Planning 70-100: Prefer detailed, fixed itineraries
+   - Destination match: ${destination ? 'Full match if in specified destination' : 'Consider destination appeal'}
+   - Date match: ${startDate && endDate ? 'Full match if dates align' : 'Consider seasonal appropriateness'}
+   
+   Calculate matchScore as weighted average: Budget (40%), Travel Style (35%), Planning (15%), Destination/Date (10%)
+   Best matching trips should score 85-100, good matches 70-84, moderate matches 50-69
 
-4. OTHER COSTS (per day):
-   - Transport: $30-100/day (subway, taxis, car rental)
-   - Activities: $50-200/day (tours, attractions, meals)
-   - Taxes/Fees: $50-150 (airport fees, service charges)
+4. TRIP VARIETY:
+   Generate diverse options that explore different aspects:
+   - Different accommodation types matching budget level ${budget}
+   - Different activity styles matching travel style ${travelStyle}
+   - Different planning structures matching planning preference ${planning}
+   - Different price points within the budget range
 
-5. TOTAL COST EXAMPLES:
-   - 3-day domestic trip: $800-2000 minimum
-   - 5-day domestic trip: $1200-3000 minimum
-   - 3-day international: $1500-3500 minimum
-   - NEVER create trips under $500 total
+5. ITINERARY:
+   Provide 5-8 specific, realistic activities/places to visit in ${destination || 'the destination'}. 
+   Activities should match:
+   - Budget level ${budget} (budget-friendly vs luxury experiences)
+   - Travel style ${travelStyle} (fast-paced vs relaxed)
+   - Planning preference ${planning} (flexible exploration vs structured tours)
 
-6. ITINERARY: Provide 5-8 specific activities/places to visit in the destination. Make them realistic and location-appropriate.
+6. RANKING:
+   Sort trips by matchScore in descending order (highest match first). The first trip should be the best match.
 
-7. Return format: JSON object with "trips" array. Each trip must have: id, title, destination, startDate, endDate, durationDays, budgetUSD, currency, activities (array), latitude, longitude, accommodations, imageUrl (empty string), description, matchScore (0-100), itinerary (array of activity strings), costBreakdown (all fields with realistic numbers), assumptions (string), dataSources (array).
+7. RETURN FORMAT:
+   JSON object with "trips" array. Each trip must have: id, title, destination, startDate, endDate, durationDays, budgetUSD, currency, activities (array), latitude, longitude, accommodations, imageUrl (empty string), description, matchScore (0-100, calculated based on preferences), itinerary (array of activity strings), costBreakdown (all fields with realistic numbers for the specific route/dates/destination), assumptions (string), dataSources (array).
 
 Return ONLY the JSON object, no schema, no explanations, no markdown.`
       }
@@ -332,54 +363,15 @@ Return ONLY the JSON object, no schema, no explanations, no markdown.`
     // The Responses API expects a single `input` prompt. We'll convert the
     // system/user messages into a single prompt and ask the model to return
     // ONLY a JSON object with actual trip data, NOT the schema.
-    const schemaString = JSON.stringify(tripFunction, null, 2);
     const prompt = `System: ${messages[0].content}
 
 User: ${messages[1].content}
 
-CRITICAL: Return ONLY a JSON object with this exact structure (DO NOT return the schema definition, return actual trip data):
-
-{
-  "trips": [
-    {
-      "id": "trip-1",
-      "title": "Example Trip Title",
-      "destination": "${destination || 'Destination Name'}",
-      "startDate": "${startDate || 'MM/DD/YYYY'}",
-      "endDate": "${endDate || 'MM/DD/YYYY'}",
-      "durationDays": 3,
-      "budgetUSD": 1500,
-      "currency": "USD",
-      "activities": ["Activity 1", "Activity 2", "Activity 3"],
-      "latitude": 40.7128,
-      "longitude": -74.0060,
-      "accommodations": "Hotel description",
-      "imageUrl": "",
-      "description": "Brief trip description",
-      "matchScore": 85,
-      "itinerary": ["Activity 1", "Activity 2", "Activity 3"],
-      "costBreakdown": {
-        "flightUSD": 400,
-        "hotelPerNightUSD": 120,
-        "hotelNights": 3,
-        "hotelTotalUSD": 360,
-        "transportUSD": 150,
-        "activitiesUSD": 200,
-        "taxesFeesUSD": 90,
-        "totalUSD": 1200,
-        "perPersonUSD": 1200
-      },
-      "assumptions": "Assumptions text",
-      "dataSources": ["Source 1", "Source 2"]
-    }
-  ]
-}
-
-IMPORTANT: 
-- Return actual trip recommendations with realistic costs, NOT the schema definition
-- Calculate flight costs: ${departureLocation ? `From ${departureLocation} to ${destination || 'destination'}, estimate realistic airfare (typically $300-800 for domestic US, $500-2000+ for international)` : 'Estimate realistic airfare based on route distance'}
-- All costs must be realistic - a 3-day trip should cost $800-2000+ minimum
-- Return ONLY the JSON object with trips array, no other text or schema`;
+CRITICAL: Return ONLY a JSON object with actual trip recommendations that match the user's preferences. 
+- Generate ${maxResults} trips ranked by matchScore (highest first)
+- Use actual market prices for the specific route, dates, and destination
+- Calculate matchScore based on how well each trip matches: budget level ${budget}, travel style ${travelStyle}, planning preference ${planning}
+- Return ONLY the JSON object with trips array, no other text, no schema, no explanations`;
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -596,86 +588,30 @@ IMPORTANT:
       console.log(`Found ${extractedTrips.length} trips in AI output, ${trips.length} passed validation.`);
     }
 
-    // Enhance trips with real flight and hotel prices
-    console.log('\n========== FETCHING REAL PRICES ==========');
-    const enhancedTrips = await Promise.all(trips.map(async (trip) => {
-      try {
-        // Get flight price using estimation function (now async)
-        const flightPrice = await estimateFlightPrice(
-          departureLocation || 'New York',
-          trip.destination || trip.title,
-          startDate
-        );
-        
-        // Calculate number of nights from dates (MM/DD/YYYY format)
-        let nights = trip.durationDays || 3;
-        if (startDate && endDate && startDate.includes('/') && endDate.includes('/')) {
-          try {
-            // Parse MM/DD/YYYY format
-            const [startMonth, startDay, startYear] = startDate.split('/').map(Number);
-            const [endMonth, endDay, endYear] = endDate.split('/').map(Number);
-            const checkinDate = new Date(startYear, startMonth - 1, startDay);
-            const checkoutDate = new Date(endYear, endMonth - 1, endDay);
-            const diffTime = Math.abs(checkoutDate - checkinDate);
-            nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (nights < 1) nights = 1;
-          } catch (e) {
-            // Use durationDays if date parsing fails
-            console.warn('Could not parse dates, using durationDays');
-          }
-        }
-        
-        // Get hotel price using estimation function
-        const hotelPricePerNight = estimateHotelPrice(
-          trip.destination || trip.title,
-          trip.accommodations || '4-star Hotel',
-          budget
-        );
-        const hotelTotalPrice = hotelPricePerNight * nights;
-        
-        console.log(`  ${trip.destination || trip.title}:`);
-        console.log(`    Flight: $${flightPrice} (estimated)`);
-        console.log(`    Hotel: $${hotelPricePerNight}/night × ${nights} nights = $${hotelTotalPrice} (estimated)`);
-        
-        // Recalculate total with real prices
-        const transportUSD = trip.costBreakdown?.transportUSD || nights * 50;
-        const activitiesUSD = trip.costBreakdown?.activitiesUSD || nights * 100;
-        const taxesFeesUSD = trip.costBreakdown?.taxesFeesUSD || 100;
-        const newTotalUSD = flightPrice + hotelTotalPrice + transportUSD + activitiesUSD + taxesFeesUSD;
-        
-        // Update cost breakdown with real prices
-        return {
-          ...trip,
-          budgetUSD: newTotalUSD,
-          costBreakdown: {
-            ...trip.costBreakdown,
-            flightUSD: flightPrice,
-            hotelPerNightUSD: hotelPricePerNight,
-            hotelNights: nights,
-            hotelTotalUSD: hotelTotalPrice,
-            transportUSD: transportUSD,
-            activitiesUSD: activitiesUSD,
-            taxesFeesUSD: taxesFeesUSD,
-            totalUSD: newTotalUSD,
-            perPersonUSD: newTotalUSD, // Assuming 1 person for now
-          },
-        };
-      } catch (error) {
-        console.error(`Error enhancing trip ${trip.id}:`, error);
-        return trip; // Return original trip if enhancement fails
-      }
-    }));
-    console.log('==========================================\n');
+    // Sort trips by matchScore (match percentage) descending - best matches first
+    trips.sort((a, b) => {
+      const scoreA = a.matchScore || 0;
+      const scoreB = b.matchScore || 0;
+      return scoreB - scoreA; // Descending order
+    });
+    
+    console.log('\n========== AI-GENERATED TRIPS (sorted by match score) ==========');
+    trips.forEach((trip, idx) => {
+      console.log(`\nTrip ${idx + 1} (Match: ${trip.matchScore || 'N/A'}%):`);
+      console.log(`  Destination: ${trip.destination || trip.title || 'Unknown'}`);
+      console.log(`  Total Cost: $${trip.costBreakdown?.totalUSD || trip.budgetUSD || 0}`);
+      console.log(`  Duration: ${trip.durationDays || 'N/A'} days`);
+    });
+    console.log('===============================================================\n');
 
-    // Log trip outputs
-    console.log('\n========== TRIP OUTPUTS ==========');
-    console.log(`Generated ${enhancedTrips.length} trip(s):`);
-    enhancedTrips.forEach((trip, idx) => {
-      console.log(`\nTrip ${idx + 1}:`);
+    // Log detailed trip outputs
+    console.log('\n========== DETAILED TRIP OUTPUTS ==========');
+    console.log(`Generated ${trips.length} trip(s), ranked by match score:`);
+    trips.forEach((trip, idx) => {
+      console.log(`\nTrip ${idx + 1} (Match Score: ${trip.matchScore || 'N/A'}%):`);
       console.log('  Destination:', trip.destination || trip.title || 'Unknown');
       console.log('  Cost (USD):', trip.costBreakdown?.totalUSD || trip.budgetUSD || 0);
       console.log('  Duration (days):', trip.durationDays || 'N/A');
-      console.log('  Match Score:', trip.matchScore || 'N/A');
       console.log('  Activities:', trip.activities?.length || 0, 'items');
       if (trip.costBreakdown) {
         console.log('  Cost Breakdown:');
@@ -687,11 +623,11 @@ IMPORTANT:
         console.log('    Total:', trip.costBreakdown.totalUSD || 0);
       }
     });
-    console.log('===================================\n');
+    console.log('==========================================\n');
 
-    // Cache and return enhanced trips
-    tripCache.set(cacheKey, { createdAt: Date.now(), data: enhancedTrips });
-    res.json({ success: true, trips: enhancedTrips, cached: false });
+    // Cache and return AI-generated trips (already sorted by matchScore)
+    tripCache.set(cacheKey, { createdAt: Date.now(), data: trips });
+    res.json({ success: true, trips: trips, cached: false });
   } catch (err) {
     console.error('generate-trip error', err);
     res.status(500).json({ error: 'Failed to generate trips', message: err.message });

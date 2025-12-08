@@ -353,9 +353,10 @@ useEffect(() => {
       setIsLoading(true);
       const apiBaseUrl = getApiBaseUrl();
       
-      // Create a timeout promise that rejects after 3 seconds
+      // Create a timeout promise that rejects after 30 seconds
+      // AI generation can take 10-30 seconds depending on complexity
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - API took too long to respond')), 3000);
+        setTimeout(() => reject(new Error('Request timeout - AI generation took too long. Please try again.')), 30000);
       });
       
       // Race between the fetch and timeout
@@ -411,10 +412,45 @@ useEffect(() => {
 
         const destinationName = t.destination || t.title || 'Unknown';
 
+        // Parse costBreakdown - ensure all numeric fields are numbers
+        let costBreakdown = undefined;
+        if (t.costBreakdown) {
+            if (typeof t.costBreakdown === 'object' && !Array.isArray(t.costBreakdown)) {
+                costBreakdown = {
+                    flightUSD: typeof t.costBreakdown.flightUSD === 'number' ? t.costBreakdown.flightUSD : 
+                               (typeof t.costBreakdown.flightUSD === 'string' ? parseFloat(t.costBreakdown.flightUSD) || 0 : 0),
+                    hotelPerNightUSD: typeof t.costBreakdown.hotelPerNightUSD === 'number' ? t.costBreakdown.hotelPerNightUSD :
+                                     (typeof t.costBreakdown.hotelPerNightUSD === 'string' ? parseFloat(t.costBreakdown.hotelPerNightUSD) || 0 : 0),
+                    hotelNights: typeof t.costBreakdown.hotelNights === 'number' ? t.costBreakdown.hotelNights :
+                                (typeof t.costBreakdown.hotelNights === 'string' ? parseInt(t.costBreakdown.hotelNights, 10) || 0 : 0),
+                    hotelTotalUSD: typeof t.costBreakdown.hotelTotalUSD === 'number' ? t.costBreakdown.hotelTotalUSD :
+                                  (typeof t.costBreakdown.hotelTotalUSD === 'string' ? parseFloat(t.costBreakdown.hotelTotalUSD) || 0 : 0),
+                    transportUSD: typeof t.costBreakdown.transportUSD === 'number' ? t.costBreakdown.transportUSD :
+                                 (typeof t.costBreakdown.transportUSD === 'string' ? parseFloat(t.costBreakdown.transportUSD) || 0 : 0),
+                    activitiesUSD: typeof t.costBreakdown.activitiesUSD === 'number' ? t.costBreakdown.activitiesUSD :
+                                  (typeof t.costBreakdown.activitiesUSD === 'string' ? parseFloat(t.costBreakdown.activitiesUSD) || 0 : 0),
+                    taxesFeesUSD: typeof t.costBreakdown.taxesFeesUSD === 'number' ? t.costBreakdown.taxesFeesUSD :
+                                 (typeof t.costBreakdown.taxesFeesUSD === 'string' ? parseFloat(t.costBreakdown.taxesFeesUSD) || 0 : 0),
+                    totalUSD: typeof t.costBreakdown.totalUSD === 'number' ? t.costBreakdown.totalUSD :
+                             (typeof t.costBreakdown.totalUSD === 'string' ? parseFloat(t.costBreakdown.totalUSD) || 0 : 0),
+                    perPersonUSD: typeof t.costBreakdown.perPersonUSD === 'number' ? t.costBreakdown.perPersonUSD :
+                                 (typeof t.costBreakdown.perPersonUSD === 'string' ? parseFloat(t.costBreakdown.perPersonUSD) || 0 : 0),
+                };
+            } else {
+                const parsed = safeParse(t.costBreakdown);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    costBreakdown = parsed;
+                }
+            }
+        }
+
+        // Calculate total cost from breakdown or use budgetUSD
+        const totalCost = costBreakdown?.totalUSD || t.budgetUSD || 0;
+
         return {
             id: t.id || String(idx),
             destination: destinationName,
-            cost: Math.round((t.costBreakdown && t.costBreakdown.totalUSD) || t.budgetUSD || 0),
+            cost: Math.round(totalCost),
             duration: ((t.durationDays || 1) * 24),
             accommodation: t.accommodations || 'Hotel',
             image: { uri: '' }, // Will be set by component via API call
@@ -423,12 +459,17 @@ useEffect(() => {
             // matchScore is already 0–100 in your sample, so just round:
             matchPercentage: typeof t.matchScore === 'number' ? Math.round(t.matchScore) : 75,
             itinerary: itineraryArray as string[],
-            costBreakdown:
-            typeof t.costBreakdown === 'object'
-                ? t.costBreakdown
-                : safeParse(t.costBreakdown) || undefined,
+            costBreakdown: costBreakdown,
         };
         });
+
+      // Debug: Log cost breakdowns to verify they're being parsed correctly
+      console.log('Mapped trips with cost breakdowns:', mapped.map(t => ({
+        destination: t.destination,
+        cost: t.cost,
+        hasCostBreakdown: !!t.costBreakdown,
+        costBreakdown: t.costBreakdown
+      })));
 
       setRecommendations(mapped);
     } catch (err: any) {
@@ -600,18 +641,68 @@ function TripDetailWithImage({ trip, imageUrl, onClose, onConfirm }: { trip: Tri
 
                 <Text style={styles.detailSubtitle}>{trip.description}</Text>
 
-                {trip.costBreakdown && (
-                    <View style={styles.costBox}>
-                        <Text style={styles.costBoxTitle}>Price estimate</Text>
-                        <View style={styles.costRow}><Text>Flight</Text><Text>${(trip.costBreakdown.flightUSD || 0).toLocaleString()}</Text></View>
-                        <View style={styles.costRow}><Text>Hotel ({trip.costBreakdown.hotelNights || 0} nights)</Text><Text>${(trip.costBreakdown.hotelTotalUSD || 0).toLocaleString()}</Text></View>
-                        <View style={styles.costRow}><Text>Transport</Text><Text>${(trip.costBreakdown.transportUSD || 0).toLocaleString()}</Text></View>
-                        <View style={styles.costRow}><Text>Activities</Text><Text>${(trip.costBreakdown.activitiesUSD || 0).toLocaleString()}</Text></View>
-                        <View style={styles.costRow}><Text>Taxes & Fees</Text><Text>${(trip.costBreakdown.taxesFeesUSD || 0).toLocaleString()}</Text></View>
-                        <View style={[styles.costRow, styles.costTotal]}><Text style={styles.costTotalText}>Total</Text><Text style={styles.costTotalText}>${(trip.costBreakdown.totalUSD || 0).toLocaleString()}</Text></View>
-                        <Text style={styles.perPerson}>Per person: ${(trip.costBreakdown.perPersonUSD || 0).toLocaleString()}</Text>
-                    </View>
-                )}
+                <View style={styles.costBox}>
+                    <Text style={styles.costBoxTitle}>Price estimate</Text>
+                    {trip.costBreakdown ? (
+                        <>
+                            <View style={styles.costRow}>
+                                <Text>Flight</Text>
+                                <Text>${((trip.costBreakdown.flightUSD || 0) > 0 ? trip.costBreakdown.flightUSD : trip.cost * 0.3).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Hotel ({trip.costBreakdown.hotelNights || Math.ceil(trip.duration / 24) || 1} nights)</Text>
+                                <Text>${((trip.costBreakdown.hotelTotalUSD || 0) > 0 ? trip.costBreakdown.hotelTotalUSD : trip.cost * 0.4).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Transport</Text>
+                                <Text>${((trip.costBreakdown.transportUSD || 0) > 0 ? trip.costBreakdown.transportUSD : trip.cost * 0.1).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Activities</Text>
+                                <Text>${((trip.costBreakdown.activitiesUSD || 0) > 0 ? trip.costBreakdown.activitiesUSD : trip.cost * 0.15).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Taxes & Fees</Text>
+                                <Text>${((trip.costBreakdown.taxesFeesUSD || 0) > 0 ? trip.costBreakdown.taxesFeesUSD : trip.cost * 0.05).toLocaleString()}</Text>
+                            </View>
+                            <View style={[styles.costRow, styles.costTotal]}>
+                                <Text style={styles.costTotalText}>Total</Text>
+                                <Text style={styles.costTotalText}>${((trip.costBreakdown.totalUSD || 0) > 0 ? trip.costBreakdown.totalUSD : trip.cost).toLocaleString()}</Text>
+                            </View>
+                            <Text style={styles.perPerson}>
+                                Per person: ${((trip.costBreakdown.perPersonUSD || 0) > 0 ? trip.costBreakdown.perPersonUSD : trip.cost).toLocaleString()}
+                            </Text>
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.costRow}>
+                                <Text>Flight</Text>
+                                <Text>${Math.round(trip.cost * 0.3).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Hotel ({Math.ceil(trip.duration / 24) || 1} nights)</Text>
+                                <Text>${Math.round(trip.cost * 0.4).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Transport</Text>
+                                <Text>${Math.round(trip.cost * 0.1).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Activities</Text>
+                                <Text>${Math.round(trip.cost * 0.15).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.costRow}>
+                                <Text>Taxes & Fees</Text>
+                                <Text>${Math.round(trip.cost * 0.05).toLocaleString()}</Text>
+                            </View>
+                            <View style={[styles.costRow, styles.costTotal]}>
+                                <Text style={styles.costTotalText}>Total</Text>
+                                <Text style={styles.costTotalText}>${trip.cost.toLocaleString()}</Text>
+                            </View>
+                            <Text style={styles.perPerson}>Per person: ${trip.cost.toLocaleString()}</Text>
+                        </>
+                    )}
+                </View>
 
                 {trip.itinerary && trip.itinerary.length > 0 && (
                 <View style={styles.itinerarySection}>
