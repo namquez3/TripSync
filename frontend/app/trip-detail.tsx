@@ -755,49 +755,88 @@ export default function TripDetailScreen() {
                     )}
 
                     {/* Cost Breakdown */}
-                    {trip.costBreakdown && (
-                        <>
-                            <View style={styles.divider} />
-                            <View style={styles.section}>
-                                <View style={styles.sectionHeader}>
-                                    <MaterialIcons name="attach-money" size={20} color="#1C4E80" />
-                                    <Text style={styles.sectionTitle}>Cost Breakdown</Text>
+                    <View style={styles.divider} />
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <MaterialIcons name="attach-money" size={20} color="#1C4E80" />
+                            <Text style={styles.sectionTitle}>Cost Breakdown</Text>
+                        </View>
+                        <View style={styles.sectionContent}>
+                            {trip.costBreakdown?.flightUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Flight:</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.flightUSD.toLocaleString()}</Text>
                                 </View>
-                                <View style={styles.sectionContent}>
-                                    {trip.costBreakdown.flightUSD && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Flight:</Text>
-                                            <Text style={styles.infoValue}>${trip.costBreakdown.flightUSD.toLocaleString()}</Text>
-                                        </View>
-                                    )}
-                                    {trip.costBreakdown.hotelTotalUSD && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Hotel ({trip.costBreakdown.hotelNights || 0} nights):</Text>
-                                            <Text style={styles.infoValue}>${trip.costBreakdown.hotelTotalUSD.toLocaleString()}</Text>
-                                        </View>
-                                    )}
-                                    {trip.costBreakdown.transportUSD && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Transport:</Text>
-                                            <Text style={styles.infoValue}>${trip.costBreakdown.transportUSD.toLocaleString()}</Text>
-                                        </View>
-                                    )}
-                                    {trip.costBreakdown.activitiesUSD && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Activities:</Text>
-                                            <Text style={styles.infoValue}>${trip.costBreakdown.activitiesUSD.toLocaleString()}</Text>
-                                        </View>
-                                    )}
-                                    {trip.costBreakdown.taxesFeesUSD && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Taxes & Fees:</Text>
-                                            <Text style={styles.infoValue}>${trip.costBreakdown.taxesFeesUSD.toLocaleString()}</Text>
-                                        </View>
-                                    )}
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Flight:</Text>
+                                    <Text style={styles.infoValue}>${Math.round(trip.cost * 0.3).toLocaleString()}</Text>
                                 </View>
-                            </View>
-                        </>
-                    )}
+                            )}
+                            {trip.costBreakdown?.hotelTotalUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Hotel ({trip.costBreakdown.hotelNights || 0} nights):</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.hotelTotalUSD.toLocaleString()}</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Hotel:</Text>
+                                    <Text style={styles.infoValue}>${Math.round(trip.cost * 0.4).toLocaleString()}</Text>
+                                </View>
+                            )}
+                            {trip.costBreakdown?.transportUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Transport:</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.transportUSD.toLocaleString()}</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Transport:</Text>
+                                    <Text style={styles.infoValue}>${Math.round(trip.cost * 0.1).toLocaleString()}</Text>
+                                </View>
+                            )}
+                            {trip.costBreakdown?.activitiesUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Activities:</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.activitiesUSD.toLocaleString()}</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Activities:</Text>
+                                    <Text style={styles.infoValue}>${Math.round(trip.cost * 0.15).toLocaleString()}</Text>
+                                </View>
+                            )}
+                            {trip.costBreakdown?.taxesFeesUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Taxes & Fees:</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.taxesFeesUSD.toLocaleString()}</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Taxes & Fees:</Text>
+                                    <Text style={styles.infoValue}>${Math.round(trip.cost * 0.05).toLocaleString()}</Text>
+                                </View>
+                            )}
+                            <View style={[styles.divider, { marginVertical: 8 }]} />
+                            {trip.costBreakdown?.totalUSD ? (
+                                <View style={styles.infoRow}>
+                                    <Text style={[styles.infoLabel, { fontWeight: '600' }]}>Total:</Text>
+                                    <Text style={[styles.infoValue, { fontWeight: '600', color: '#1C4E80' }]}>${trip.costBreakdown.totalUSD.toLocaleString()}</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.infoRow}>
+                                    <Text style={[styles.infoLabel, { fontWeight: '600' }]}>Total:</Text>
+                                    <Text style={[styles.infoValue, { fontWeight: '600', color: '#1C4E80' }]}>${trip.cost.toLocaleString()}</Text>
+                                </View>
+                            )}
+                            {trip.costBreakdown?.perPersonUSD && (
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>Per Person:</Text>
+                                    <Text style={styles.infoValue}>${trip.costBreakdown.perPersonUSD.toLocaleString()}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
 
                     {/* Divider */}
                     <View style={styles.divider} />
