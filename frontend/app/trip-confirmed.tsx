@@ -24,121 +24,328 @@ const formatFlightDate = (dateStr: string): string => {
     }
 };
 
-// Mock flight and hotel data based on trip selection
-const getFlightInfo = (destination: string, duration: number, startDate?: string, endDate?: string) => {
-    const flights: Record<string, { airline: string; flightNumber: string; departureTime: string; arrivalTime: string; returnFlightNumber: string; returnDepartureTime: string; returnArrivalTime: string }> = {
-        'Santorini, Greece': {
-            airline: 'Delta Airlines',
-            flightNumber: 'DL 245',
-            departureTime: '8:00 AM',
-            arrivalTime: '4:00 PM',
-            returnFlightNumber: 'DL 246',
-            returnDepartureTime: '2:00 PM',
-            returnArrivalTime: '6:00 PM',
-        },
-        'Bali, Indonesia': {
-            airline: 'Singapore Airlines',
-            flightNumber: 'SQ 892',
-            departureTime: '10:30 AM',
-            arrivalTime: '2:30 AM+1',
-            returnFlightNumber: 'SQ 893',
-            returnDepartureTime: '11:00 PM',
-            returnArrivalTime: '7:00 AM+1',
-        },
-        'Tokyo, Japan': {
-            airline: 'Japan Airlines',
-            flightNumber: 'JL 61',
-            departureTime: '11:00 AM',
-            arrivalTime: '3:00 PM',
-            returnFlightNumber: 'JL 62',
-            returnDepartureTime: '4:00 PM',
-            returnArrivalTime: '12:00 PM',
-        },
-        'Paris, France': {
-            airline: 'Air France',
-            flightNumber: 'AF 83',
-            departureTime: '9:15 AM',
-            arrivalTime: '11:30 PM',
-            returnFlightNumber: 'AF 84',
-            returnDepartureTime: '1:00 PM',
-            returnArrivalTime: '4:30 PM',
-        },
-        'Dubai, UAE': {
-            airline: 'Emirates',
-            flightNumber: 'EK 201',
-            departureTime: '10:00 AM',
-            arrivalTime: '8:00 AM+1',
-            returnFlightNumber: 'EK 202',
-            returnDepartureTime: '2:00 AM',
-            returnArrivalTime: '8:00 AM',
-        },
-        'Miami, Florida': {
-            airline: 'American Airlines',
-            flightNumber: 'AA 1234',
-            departureTime: '8:00 AM',
-            arrivalTime: '11:30 AM',
-            returnFlightNumber: 'AA 1235',
-            returnDepartureTime: '2:00 PM',
-            returnArrivalTime: '5:30 PM',
-        },
+const getTimeZone = (location: string): { tz: string; offset: number } => {
+    const loc = location.toLowerCase();
+    if (loc.includes('beijing') || loc.includes('shanghai') || loc.includes('china')) return { tz: 'CST', offset: 8 };
+    if (loc.includes('tokyo') || loc.includes('japan')) return { tz: 'JST', offset: 9 };
+    if (loc.includes('seoul') || loc.includes('korea')) return { tz: 'KST', offset: 9 };
+    if (loc.includes('singapore') || loc.includes('malaysia')) return { tz: 'SGT', offset: 8 };
+    if (loc.includes('bangkok') || loc.includes('thailand')) return { tz: 'ICT', offset: 7 };
+    if (loc.includes('mumbai') || loc.includes('delhi') || loc.includes('india')) return { tz: 'IST', offset: 5.5 };
+    if (loc.includes('sydney') || loc.includes('melbourne') || loc.includes('australia')) return { tz: 'AEST', offset: 10 };
+    if (loc.includes('dubai') || loc.includes('uae') || loc.includes('qatar')) return { tz: 'GST', offset: 4 };
+    if (loc.includes('london') || loc.includes('uk') || loc.includes('united kingdom')) return { tz: 'GMT', offset: 0 };
+    if (loc.includes('paris') || loc.includes('rome') || loc.includes('berlin') || loc.includes('madrid') || loc.includes('europe') || loc.includes('santorini') || loc.includes('greece')) return { tz: 'CET', offset: 1 };
+    if (loc.includes('moscow') || loc.includes('russia')) return { tz: 'MSK', offset: 3 };
+    if (loc.includes('new york') || loc.includes('philadelphia') || loc.includes('boston') || loc.includes('washington') || loc.includes('miami') || loc.includes('atlanta')) return { tz: 'EST', offset: -5 };
+    if (loc.includes('chicago') || loc.includes('dallas') || loc.includes('houston') || loc.includes('minneapolis')) return { tz: 'CST', offset: -6 };
+    if (loc.includes('denver') || loc.includes('phoenix') || loc.includes('salt lake')) return { tz: 'MST', offset: -7 };
+    if (loc.includes('los angeles') || loc.includes('san francisco') || loc.includes('seattle') || loc.includes('portland') || loc.includes('vegas') || loc.includes('las vegas')) return { tz: 'PST', offset: -8 };
+    if (loc.includes('toronto') || loc.includes('montreal') || loc.includes('vancouver') || loc.includes('canada')) return { tz: 'EST', offset: -5 };
+    if (loc.includes('mexico') || loc.includes('cancun')) return { tz: 'CST', offset: -6 };
+    if (loc.includes('brazil') || loc.includes('sao paulo') || loc.includes('rio')) return { tz: 'BRT', offset: -3 };
+    if (loc.includes('bali') || loc.includes('jakarta') || loc.includes('indonesia')) return { tz: 'WIB', offset: 7 };
+    if (loc.includes('philippines') || loc.includes('manila')) return { tz: 'PHT', offset: 8 };
+    return { tz: 'UTC', offset: 0 };
+};
+
+const getFlightDuration = (origin: string, destination: string): number => {
+    const originLower = origin.toLowerCase();
+    const destLower = destination.toLowerCase();
+    
+    const extractCity = (loc: string) => {
+        const parts = loc.split(',').map(p => p.trim().toLowerCase());
+        return parts[0];
     };
     
-    // Determine airline based on destination region
-    const getDefaultAirline = (dest: string): string => {
-        const destLower = dest.toLowerCase();
-        if (destLower.includes('miami') || destLower.includes('florida') || destLower.includes('united states') || destLower.includes('usa')) {
-            return 'American Airlines';
-        } else if (destLower.includes('europe') || destLower.includes('london') || destLower.includes('paris') || destLower.includes('rome') || destLower.includes('barcelona')) {
-            return 'Lufthansa';
-        } else if (destLower.includes('asia') || destLower.includes('tokyo') || destLower.includes('japan') || destLower.includes('singapore')) {
-            return 'United Airlines';
-        } else if (destLower.includes('australia') || destLower.includes('sydney') || destLower.includes('melbourne')) {
-            return 'Qantas';
-        } else if (destLower.includes('canada') || destLower.includes('toronto') || destLower.includes('vancouver')) {
-            return 'Air Canada';
-        } else if (destLower.includes('mexico') || destLower.includes('cancun') || destLower.includes('mexico city')) {
-            return 'Aeromexico';
-        } else if (destLower.includes('brazil') || destLower.includes('south america')) {
-            return 'LATAM Airlines';
+    const originCity = extractCity(origin);
+    const destCity = extractCity(destination);
+    
+    const isUS = (loc: string) => {
+        return loc.includes('united states') || loc.includes('usa') || loc.includes('us,') ||
+               loc.includes('new york') || loc.includes('los angeles') || loc.includes('chicago') ||
+               loc.includes('philadelphia') || loc.includes('miami') || loc.includes('atlanta') ||
+               loc.includes('boston') || loc.includes('washington') || loc.includes('seattle') ||
+               loc.includes('san francisco') || loc.includes('dallas') || loc.includes('houston') ||
+               loc.includes('vegas') || loc.includes('las vegas') || loc.includes('phoenix') ||
+               loc.includes('denver') || loc.includes('portland');
+    };
+    
+    const isEurope = (loc: string) => {
+        return loc.includes('europe') || loc.includes('london') || loc.includes('paris') ||
+               loc.includes('rome') || loc.includes('berlin') || loc.includes('madrid') ||
+               loc.includes('barcelona') || loc.includes('amsterdam') || loc.includes('vienna') ||
+               loc.includes('santorini') || loc.includes('greece');
+    };
+    
+    const isAsia = (loc: string) => {
+        return loc.includes('asia') || loc.includes('tokyo') || loc.includes('japan') ||
+               loc.includes('beijing') || loc.includes('shanghai') || loc.includes('china') ||
+               loc.includes('seoul') || loc.includes('korea') || loc.includes('singapore') ||
+               loc.includes('bangkok') || loc.includes('thailand') || loc.includes('mumbai') ||
+               loc.includes('delhi') || loc.includes('india') || loc.includes('bali') ||
+               loc.includes('indonesia') || loc.includes('philippines') || loc.includes('manila');
+    };
+    
+    const isMiddleEast = (loc: string) => {
+        return loc.includes('dubai') || loc.includes('uae') || loc.includes('qatar') ||
+               loc.includes('abu dhabi') || loc.includes('riyadh') || loc.includes('saudi');
+    };
+    
+    const isOceania = (loc: string) => {
+        return loc.includes('australia') || loc.includes('sydney') || loc.includes('melbourne') ||
+               loc.includes('auckland') || loc.includes('new zealand');
+    };
+    
+    const isSouthAmerica = (loc: string) => {
+        return loc.includes('south america') || loc.includes('brazil') || loc.includes('sao paulo') ||
+               loc.includes('rio') || loc.includes('buenos aires') || loc.includes('argentina') ||
+               loc.includes('lima') || loc.includes('peru') || loc.includes('bogota') || loc.includes('colombia');
+    };
+    
+    const originUS = isUS(originLower);
+    const destUS = isUS(destLower);
+    const originEurope = isEurope(originLower);
+    const destEurope = isEurope(destLower);
+    const originAsia = isAsia(originLower);
+    const destAsia = isAsia(destLower);
+    const originMiddleEast = isMiddleEast(originLower);
+    const destMiddleEast = isMiddleEast(destLower);
+    const originOceania = isOceania(originLower);
+    const destOceania = isOceania(destLower);
+    const originSouthAmerica = isSouthAmerica(originLower);
+    const destSouthAmerica = isSouthAmerica(destLower);
+    
+    if (originUS && destUS) {
+        if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) {
+            if (destCity.includes('los angeles') || destCity.includes('san francisco') || destCity.includes('seattle')) return 6;
+            if (destCity.includes('miami') || destCity.includes('atlanta')) return 2.5;
         }
-        return 'American Airlines'; // Default for US destinations
+        if (originCity.includes('los angeles') || originCity.includes('san francisco')) {
+            if (destCity.includes('new york') || destCity.includes('philadelphia') || destCity.includes('boston')) return 5.5;
+            if (destCity.includes('chicago') || destCity.includes('dallas')) return 3.5;
+        }
+        return 3;
+    }
+    
+    if (originUS && destEurope) {
+        if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 7;
+        if (originCity.includes('chicago') || originCity.includes('atlanta')) return 8.5;
+        if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 11;
+        return 9;
+    }
+    
+    if (originUS && destAsia) {
+        if (destCity.includes('beijing') || destCity.includes('shanghai') || destCity.includes('china')) {
+            if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 14;
+            if (originCity.includes('chicago') || originCity.includes('atlanta')) return 15;
+            if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 12.5;
+            return 13.5;
+        }
+        if (destCity.includes('tokyo') || destCity.includes('japan')) {
+            if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 14;
+            if (originCity.includes('chicago') || originCity.includes('atlanta')) return 13;
+            if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 11;
+            return 12;
+        }
+        if (destCity.includes('seoul') || destCity.includes('korea')) {
+            if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 14.5;
+            if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 12.5;
+            return 13.5;
+        }
+        if (destCity.includes('singapore')) {
+            if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 18;
+            if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 16;
+            return 17;
+        }
+        if (destCity.includes('bali') || destCity.includes('indonesia')) {
+            if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 20;
+            if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 18;
+            return 19;
+        }
+        return 14;
+    }
+    
+    if (originUS && destMiddleEast) {
+        if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 12;
+        if (originCity.includes('chicago') || originCity.includes('atlanta')) return 13.5;
+        if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 16;
+        return 13;
+    }
+    
+    if (originUS && destOceania) {
+        if (originCity.includes('los angeles') || originCity.includes('san francisco')) return 14;
+        if (originCity.includes('new york') || originCity.includes('philadelphia') || originCity.includes('boston')) return 22;
+        return 18;
+    }
+    
+    if (originEurope && destAsia) {
+        if (destCity.includes('beijing') || destCity.includes('shanghai') || destCity.includes('china')) return 10;
+        if (destCity.includes('tokyo') || destCity.includes('japan')) return 11;
+        if (destCity.includes('singapore')) return 12;
+        return 10.5;
+    }
+    
+    if (originEurope && destUS) {
+        if (destCity.includes('new york') || destCity.includes('philadelphia') || destCity.includes('boston')) return 7.5;
+        if (destCity.includes('chicago') || destCity.includes('atlanta')) return 9;
+        if (destCity.includes('los angeles') || originCity.includes('san francisco')) return 11;
+        return 9;
+    }
+    
+    if (originAsia && destAsia) {
+        if (originCity.includes('beijing') || originCity.includes('shanghai')) {
+            if (destCity.includes('tokyo') || destCity.includes('japan')) return 3;
+            if (destCity.includes('singapore')) return 5.5;
+            if (destCity.includes('bali') || destCity.includes('indonesia')) return 6;
+        }
+        return 4;
+    }
+    
+    return 8;
+};
+
+const calculateFlightTimes = (origin: string, destination: string, departureHour: number = 9): {
+    departureTime: string;
+    arrivalTimeLocal: string;
+    flightDuration: number;
+    originTZ: string;
+    destTZ: string;
+    arrivalDaysOffset: number;
+} => {
+    const flightDuration = getFlightDuration(origin, destination);
+    const originTZInfo = getTimeZone(origin);
+    const destTZInfo = getTimeZone(destination);
+    const originTZ = originTZInfo.tz;
+    const destTZ = destTZInfo.tz;
+    
+    const timeZoneDiff = destTZInfo.offset - originTZInfo.offset;
+    
+    const formatTime = (hours: number, tz: string, addDays: number = 0): string => {
+        let totalHours = hours;
+        if (totalHours >= 24) {
+            addDays += Math.floor(totalHours / 24);
+            totalHours = totalHours % 24;
+        }
+        if (totalHours < 0) {
+            addDays -= 1;
+            totalHours = 24 + totalHours;
+        }
+        
+        const hour = Math.floor(totalHours) % 24;
+        const minutes = Math.floor((totalHours % 1) * 60);
+        const period = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+        const daySuffix = addDays > 0 ? '+1' : (addDays < 0 ? '-1' : '');
+        return `${displayHour}:${minutes.toString().padStart(2, '0')} ${period} ${tz}${daySuffix}`;
     };
     
-    const defaultAirline = getDefaultAirline(destination);
-    const flightData = flights[destination] || {
-        airline: defaultAirline,
-        flightNumber: defaultAirline === 'American Airlines' ? 'AA 1234' : 
-                     defaultAirline === 'Lufthansa' ? 'LH 456' :
-                     defaultAirline === 'United Airlines' ? 'UA 789' :
-                     defaultAirline === 'Qantas' ? 'QF 12' :
-                     defaultAirline === 'Air Canada' ? 'AC 123' :
-                     defaultAirline === 'Aeromexico' ? 'AM 456' :
-                     defaultAirline === 'LATAM Airlines' ? 'LA 789' : 'AA 1234',
-        departureTime: '9:00 AM',
-        arrivalTime: '5:00 PM',
-        returnFlightNumber: defaultAirline === 'American Airlines' ? 'AA 1235' : 
-                           defaultAirline === 'Lufthansa' ? 'LH 457' :
-                           defaultAirline === 'United Airlines' ? 'UA 790' :
-                           defaultAirline === 'Qantas' ? 'QF 13' :
-                           defaultAirline === 'Air Canada' ? 'AC 124' :
-                           defaultAirline === 'Aeromexico' ? 'AM 457' :
-                           defaultAirline === 'LATAM Airlines' ? 'LA 790' : 'AA 1235',
-        returnDepartureTime: '3:00 PM',
-        returnArrivalTime: '7:00 PM',
-    };
+    const departureTime = formatTime(departureHour, originTZ);
     
-    const departureDate = startDate ? formatFlightDate(startDate) : '';
-    const arrivalDate = startDate ? formatFlightDate(startDate) : '';
-    const returnDate = endDate ? formatFlightDate(endDate) : '';
+    const arrivalHoursInOriginTZ = departureHour + flightDuration;
+    const arrivalHoursInDestTZ = arrivalHoursInOriginTZ + timeZoneDiff;
+    
+    let arrivalDays = 0;
+    if (arrivalHoursInDestTZ >= 24) {
+        arrivalDays = Math.floor(arrivalHoursInDestTZ / 24);
+    }
+    
+    const arrivalTimeLocal = formatTime(arrivalHoursInDestTZ, destTZ, arrivalDays);
     
     return {
-        airline: flightData.airline,
-        flightNumber: flightData.flightNumber,
-        departure: startDate ? `${flightData.departureTime}, ${departureDate}` : flightData.departureTime,
-        arrival: startDate ? `${flightData.arrivalTime}, ${arrivalDate}` : flightData.arrivalTime,
-        returnFlightNumber: flightData.returnFlightNumber,
-        returnDeparture: endDate ? `${flightData.returnDepartureTime}, ${returnDate}` : flightData.returnDepartureTime,
-        returnArrival: endDate ? `${flightData.returnArrivalTime}, ${returnDate}` : flightData.returnArrivalTime,
+        departureTime,
+        arrivalTimeLocal,
+        flightDuration,
+        originTZ,
+        destTZ,
+        arrivalDaysOffset: arrivalDays,
+    };
+};
+
+const calculateArrivalDate = (startDate: string, daysOffset: number): string => {
+    if (!startDate || !startDate.includes('/')) return '';
+    try {
+        const [month, day, year] = startDate.split('/').map(Number);
+        const date = new Date(year, month - 1, day);
+        date.setDate(date.getDate() + daysOffset);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = monthNames[date.getMonth()];
+        return `${monthName} ${date.getDate()}, ${date.getFullYear()}`;
+    } catch {
+        return startDate;
+    }
+};
+
+const getDefaultAirline = (dest: string): string => {
+    const destLower = dest.toLowerCase();
+    if (destLower.includes('miami') || destLower.includes('florida') || destLower.includes('united states') || destLower.includes('usa')) {
+        return 'American Airlines';
+    } else if (destLower.includes('europe') || destLower.includes('london') || destLower.includes('paris') || destLower.includes('rome') || destLower.includes('barcelona') || destLower.includes('santorini') || destLower.includes('greece')) {
+        return 'Lufthansa';
+    } else if (destLower.includes('asia') || destLower.includes('tokyo') || destLower.includes('japan') || destLower.includes('singapore') || destLower.includes('beijing') || destLower.includes('china') || destLower.includes('seoul') || destLower.includes('korea')) {
+        return 'United Airlines';
+    } else if (destLower.includes('australia') || destLower.includes('sydney') || destLower.includes('melbourne')) {
+        return 'Qantas';
+    } else if (destLower.includes('canada') || destLower.includes('toronto') || destLower.includes('vancouver')) {
+        return 'Air Canada';
+    } else if (destLower.includes('mexico') || destLower.includes('cancun') || destLower.includes('mexico city')) {
+        return 'Aeromexico';
+    } else if (destLower.includes('brazil') || destLower.includes('south america')) {
+        return 'LATAM Airlines';
+    } else if (destLower.includes('dubai') || destLower.includes('uae') || destLower.includes('qatar')) {
+        return 'Emirates';
+    } else if (destLower.includes('bali') || destLower.includes('indonesia')) {
+        return 'Singapore Airlines';
+    }
+    return 'American Airlines';
+};
+
+const getFlightInfo = (origin: string, destination: string, duration: number, startDate?: string, endDate?: string) => {
+    if (!origin || origin.trim() === '') {
+        origin = 'New York, United States';
+    }
+    
+    const outbound = calculateFlightTimes(origin, destination, 9);
+    const returnFlight = calculateFlightTimes(destination, origin, 14);
+    
+    const airline = getDefaultAirline(destination);
+    const flightNumber = airline === 'American Airlines' ? 'AA 1234' : 
+                        airline === 'Lufthansa' ? 'LH 456' :
+                        airline === 'United Airlines' ? 'UA 789' :
+                        airline === 'Qantas' ? 'QF 12' :
+                        airline === 'Air Canada' ? 'AC 123' :
+                        airline === 'Aeromexico' ? 'AM 456' :
+                        airline === 'LATAM Airlines' ? 'LA 789' :
+                        airline === 'Emirates' ? 'EK 201' :
+                        airline === 'Singapore Airlines' ? 'SQ 892' : 'AA 1234';
+    
+    const returnFlightNumber = airline === 'American Airlines' ? 'AA 1235' : 
+                               airline === 'Lufthansa' ? 'LH 457' :
+                               airline === 'United Airlines' ? 'UA 790' :
+                               airline === 'Qantas' ? 'QF 13' :
+                               airline === 'Air Canada' ? 'AC 124' :
+                               airline === 'Aeromexico' ? 'AM 457' :
+                               airline === 'LATAM Airlines' ? 'LA 790' :
+                               airline === 'Emirates' ? 'EK 202' :
+                               airline === 'Singapore Airlines' ? 'SQ 893' : 'AA 1235';
+    
+    const departureDate = startDate ? formatFlightDate(startDate) : '';
+    const arrivalDate = startDate ? calculateArrivalDate(startDate, outbound.arrivalDaysOffset) : '';
+    const returnDate = endDate ? formatFlightDate(endDate) : '';
+    const returnArrivalDate = endDate ? calculateArrivalDate(endDate, returnFlight.arrivalDaysOffset) : '';
+    
+    const arrivalDisplay = outbound.arrivalTimeLocal;
+    const returnDepartureDisplay = returnFlight.departureTime;
+    const returnArrivalDisplay = returnFlight.arrivalTimeLocal;
+    
+    return {
+        airline,
+        flightNumber,
+        departure: startDate ? `${outbound.departureTime}, ${departureDate}` : outbound.departureTime,
+        arrival: startDate ? `${arrivalDisplay}, ${arrivalDate}` : arrivalDisplay,
+        returnFlightNumber,
+        returnDeparture: endDate ? `${returnDepartureDisplay}, ${returnDate}` : returnDepartureDisplay,
+        returnArrival: endDate ? `${returnArrivalDisplay}, ${returnArrivalDate}` : returnArrivalDisplay,
     };
 };
 
@@ -208,7 +415,7 @@ export default function TripConfirmedScreen() {
     const accommodation = (params.accommodation as string) || '';
     const duration = params.duration ? parseInt(params.duration as string) : 0;
 
-    const flightInfo = getFlightInfo(destination, duration, startDate, endDate);
+    const flightInfo = getFlightInfo(departureLocation || 'New York, United States', destination, duration, startDate, endDate);
     const accommodationStr = typeof accommodation === 'string' 
         ? accommodation 
         : (accommodation && typeof accommodation === 'object' 
